@@ -1,16 +1,57 @@
 # AI Debate Mediator 🎙️🤝
 
-Sistema inteligente de mediación y facilitación de debates en tiempo real. Combina análisis multimodal de voz de baja latencia con un lienzo interactivo que mapea consensos, divergencias y verificación fáctica automática para guiar a las personas hacia un entendimiento común.
+[![GitHub Pages](https://img.shields.io/badge/Demo-GitHub%20Pages-emerald?style=for-the-badge&logo=github)](https://majajicl.github.io/ai-debate-mediator/)
+[![Status](https://img.shields.io/badge/Status-Live%20Application-blue?style=for-the-badge)](https://majajicl.github.io/ai-debate-mediator/)
+
+Sistema interactivo e inteligente de mediación y facilitación de debates en tiempo real. Combina un **lienzo visual dinámico de argumentos (Argument Mapping)**, **moderación socrática constructiva (*steelmanning*)**, **verificación fáctica contextual en vivo** y **síntesis de voz**.
 
 ---
 
-## 🎯 Visión del Proyecto
+### 🌐 Demo en Vivo
 
-El objetivo de **AI Debate Mediator** no es declarar un "ganador" en una discusión, sino transformar un enfrentamiento de posturas en una conversación constructiva. A través de tecnología conversacional y razonamiento socrático, la plataforma:
+Puedes probar la aplicación funcionando directamente en tu navegador aquí:
+👉 **[https://majajicl.github.io/ai-debate-mediator/](https://majajicl.github.io/ai-debate-mediator/)**
 
-1. **Escucha y modera con empatía**: Aplica técnicas de *steelmanning* para reformular posturas en su forma más sólida.
-2. **Visualiza el terreno común**: Traduce el debate verbal en un mapa conceptual interactivo de acuerdos y desacuerdos.
-3. **Verifica hechos al instante**: Proporciona contexto fáctico en tiempo real para evitar desacuerdos basados en datos erróneos.
+---
+
+## 🎯 ¿Qué problema resuelve?
+
+En los debates humanos habituales, las conversaciones suelen estancarse en:
+- Falsas dicotomías y polarización emocional.
+- Discrepancias sobre hechos objetivos comprobables.
+- Dificultad para recordar y consolidar los puntos en los que **ambas partes ya están de acuerdo**.
+
+**AI Debate Mediator** actúa como un tercer participante neutral que no busca elegir un bando ganador, sino estructurar el diálogo hacia el entendimiento mutuo.
+
+---
+
+## ✨ Características Principales
+
+1. **Lienzo Visual Reactivo (Physics-Based Graph Canvas)**:
+   - Visualiza en tiempo real las posturas del Participante A (azul) y Participante B (ámbar).
+   - Identifica y destaca los **nodos de consenso** (verde esmeralda con partículas animadas).
+   - Delimita **puntos de divergencia** y clasifica la raíz del desacuerdo (valores, definiciones o datos).
+   - Soporta arrastre de nodos, zoom y paneo fluido a 60 FPS.
+
+2. **Moderación Socrática y *Steelmanning***:
+   - Reformula cada argumento en su versión más lógica, empática y constructiva para desarmar la hostilidad.
+   - Genera preguntas abiertas que invitan a descubrir salvaguardas mutuas.
+
+3. **Verificación Fáctica en Segundo Plano (Fact-Checking)**:
+   - Contrasta automáticamente afirmaciones empíricas y estadísticas con fuentes científicas y estudios de referencia (IPCC, FMI, NIST, etc.).
+
+4. **Síntesis y Reconocimiento de Voz**:
+   - Integración con Web Speech API para dictar argumentos con micrófono en español.
+   - Voz de la IA mediadora que interviene con tono neutro y pausado.
+   - Monitor visual de audio y ondas de voz en tiempo real.
+
+5. **Modos de Operación**:
+   - **Escenarios Predefinidos**: Casos guiados paso a paso (IA y Empleo, Transición Energética, Privacidad vs Seguridad).
+   - **Debate Libre en Vivo**: Permite a dos usuarios debatir sobre cualquier tópico por texto o micrófono.
+   - **Compatibilidad con Google Gemini**: Permite añadir una API Key de Gemini en configuración para inferencia avanzada en vivo, o funcionar con el motor heurístico local sin configuración previa.
+
+6. **Acta y Reporte de Entendimiento Común**:
+   - Exporta el balance de la sesión en Markdown o vista imprimible con porcentajes de consenso y acuerdos consolidados.
 
 ---
 
@@ -21,49 +62,42 @@ flowchart TD
     subgraph Participantes [Debatientes]
         UserA[Participante A]
         UserB[Participante B]
-        Canvas[Lienzo Visual Compartido - React Flow]
+        Canvas[Lienzo Visual Reactivo - Graph Engine]
     end
 
-    subgraph Gateway [Backend / WebSockets & WebRTC]
-        AudioRouter[Enrutador de Audio Streaming]
-        GraphEngine[Motor de Mapeo de Argumentos]
-        FactCheck[Búsqueda y Verificación Fáctica]
+    subgraph MediatorCore [Motor de Mediación]
+        AudioRouter[Monitor de Audio y Síntesis de Voz]
+        SocraticEngine[Moderación Socrática & Steelmanning]
+        FactCheck[Verificación Fáctica en Tiempo Real]
     end
 
-    subgraph IA [Servicios de Inteligencia Artificial]
-        LiveAPI[Gemini Multimodal Live API]
-        Analyst[LLM Analítico y Detector de Falacias]
+    subgraph Inteligencia [Modelos de IA]
+        LocalEngine[Motor Heurístico Local Offline]
+        GeminiAPI[Google Gemini Multimodal API]
     end
 
-    UserA & UserB <-->|Audio PCM en tiempo real| AudioRouter
-    AudioRouter <--> LiveAPI
-    LiveAPI -->|Eventos de habla y transcripción| GraphEngine
-    GraphEngine --> Analyst
-    Analyst --> FactCheck
-    GraphEngine -->|Actualización del Grafo en vivo| Canvas
+    UserA & UserB <-->|Voz / Texto| AudioRouter
+    AudioRouter --> SocraticEngine
+    SocraticEngine <--> LocalEngine & GeminiAPI
+    SocraticEngine --> FactCheck
+    SocraticEngine -->|Actualización de Estado y Nodos| Canvas
+    Canvas -->|Comprensión Visual y Consensos| UserA & UserB
 ```
 
 ---
 
-## 🚀 Tecnologías Clave
+## 💻 Ejecución Local
 
-- **Voz y Streaming Multimodal**: [Gemini Multimodal Live API](https://ai.google.dev/) sobre WebSockets / WebRTC.
-- **Frontend & Canvas**: React, Next.js, Tailwind CSS, [React Flow](https://reactflow.dev/).
-- **Backend & Orquestación**: Node.js / FastAPI con soporte para eventos en tiempo real.
-- **Verificación Fáctica**: Integración RAG con APIs de búsqueda en tiempo real.
-
----
-
-## 🗺️ Hoja de Ruta
-
-- [x] Configuración inicial del repositorio y arquitectura técnica.
-- [ ] Prototipo del lienzo visual de argumentos (React Flow).
-- [ ] Integración del servidor WebSockets para sincronización de estados.
-- [ ] Conexión con Gemini Multimodal Live API para audio bidireccional y moderación socrática.
-- [ ] Motor de verificación contextual en segundo plano.
+Si deseas correrlo localmente sin conexión:
+1. Clona el repositorio:
+   ```bash
+   git clone https://github.com/MajajiCL/ai-debate-mediator.git
+   cd ai-debate-mediator
+   ```
+2. Abre `index.html` en cualquier navegador web moderno (Chrome, Edge, Firefox, Safari).
 
 ---
 
 ## 📄 Licencia
 
-MIT
+Este proyecto está bajo la Licencia MIT.

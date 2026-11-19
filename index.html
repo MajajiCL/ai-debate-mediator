@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Debate AI — Mediador Socrático en Vivo</title>
-  <meta name="description" content="Aplicación móvil de debate por voz entre dos personas con mediación por IA gratuita en tiempo real." />
+  <title>Debate AI — Mediador por Voz (Compatible Brave & Móvil)</title>
+  <meta name="description" content="Debate por voz entre dos personas con reconocimiento neuronal Whisper local (compatible con Brave) y mediación IA gratuita." />
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -42,7 +42,7 @@
   <div class="w-full max-w-xl mx-auto min-h-screen flex flex-col px-3.5 py-3 sm:py-5 relative">
 
     <!-- Top Simple Header -->
-    <header class="flex items-center justify-between py-2 border-b border-slate-800/80 mb-3">
+    <header class="flex items-center justify-between py-2 border-b border-slate-800/80 mb-2.5">
       <div class="flex items-center gap-2.5">
         <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-brand via-purple-500 to-emerald-400 p-0.5 shadow-md shadow-brand/20">
           <div class="w-full h-full bg-slate-950 rounded-full flex items-center justify-center">
@@ -52,7 +52,9 @@
         <div>
           <h1 class="text-sm font-bold tracking-tight text-white flex items-center gap-1.5">
             Debate AI
-            <span id="connection-pill" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">IA Libre Activa</span>
+            <span id="whisper-status-pill" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+              🧠 Preparando voz local...
+            </span>
           </h1>
         </div>
       </div>
@@ -75,28 +77,28 @@
     </header>
 
     <!-- Dynamic Topic Banner -->
-    <div id="topic-container" class="mb-3 text-center">
+    <div id="topic-container" class="mb-2.5 text-center">
       <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface border border-slate-800 shadow-inner max-w-full">
         <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0"></span>
         <span class="text-[11px] text-slate-400 flex-shrink-0">Tema:</span>
-        <span id="active-topic-text" class="text-xs font-semibold text-white truncate">Habla o escribe para proponer cualquier tema</span>
+        <span id="active-topic-text" class="text-xs font-semibold text-white truncate">Toca a Sujeto 1 o el micrófono abajo para hablar</span>
       </div>
     </div>
 
-    <!-- Voice Stage: 3 Speakers (Tap Sujeto 1 or Sujeto 2 to switch speaker on same device) -->
+    <!-- Voice Stage: Clicking Sujeto 1 or Sujeto 2 DIRECTLY starts/stops recording for that speaker -->
     <section class="bg-surface/90 border border-slate-800/90 rounded-3xl p-4 mb-3 shadow-xl relative overflow-hidden backdrop-blur-md">
       <div class="absolute -top-12 left-1/2 -translate-x-1/2 w-48 h-48 bg-brand/10 rounded-full blur-3xl pointer-events-none"></div>
 
       <div class="grid grid-cols-3 gap-2 items-center justify-items-center relative z-10">
         
-        <!-- Speaker 1 -->
-        <button id="select-user1-btn" class="flex flex-col items-center text-center group focus:outline-none" title="Toca para hablar como Sujeto 1">
-          <div id="avatar-user1" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-slate-800 border-2 border-sky-400 flex items-center justify-center relative transition-all duration-300 shadow-md ring-2 ring-sky-400/30">
-            <i data-lucide="user" class="w-7 h-7 sm:w-8 sm:h-8 text-sky-400"></i>
-            <span id="badge-user1" class="absolute -bottom-1 px-2 py-0.5 rounded-full bg-sky-500 text-slate-950 text-[9px] font-bold">Turno activo</span>
+        <!-- Speaker 1: Clicking directly toggles recording for Sujeto 1 -->
+        <button id="talk-user1-btn" class="flex flex-col items-center text-center group focus:outline-none active:scale-95 transition-transform" title="Haz clic aquí para hablar como Sujeto 1">
+          <div id="avatar-user1" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-slate-800 border-2 border-sky-400 flex items-center justify-center relative transition-all duration-300 shadow-md ring-2 ring-sky-400/30 group-hover:bg-sky-950/60">
+            <i data-lucide="mic" class="w-7 h-7 sm:w-8 sm:h-8 text-sky-400"></i>
+            <span id="badge-user1" class="absolute -bottom-1 px-2 py-0.5 rounded-full bg-sky-500 text-slate-950 text-[9px] font-extrabold">🎙️ Hablar</span>
           </div>
-          <span class="text-xs font-semibold text-sky-400 mt-2">Sujeto 1</span>
-          <span id="status-user1" class="text-[10px] text-slate-400">Listo para hablar</span>
+          <span class="text-xs font-bold text-sky-400 mt-2">Sujeto 1</span>
+          <span id="status-user1" class="text-[10px] text-slate-300">Toca para hablar</span>
         </button>
 
         <!-- Center: AI Mediator Orb -->
@@ -110,34 +112,37 @@
           <span id="status-ai" class="text-[10px] text-slate-400">Escuchando</span>
         </div>
 
-        <!-- Speaker 2 -->
-        <button id="select-user2-btn" class="flex flex-col items-center text-center group focus:outline-none" title="Toca para hablar como Sujeto 2">
-          <div id="avatar-user2" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center relative transition-all duration-300 shadow-md">
-            <i data-lucide="user-check" class="w-7 h-7 sm:w-8 sm:h-8 text-amber-400"></i>
-            <span id="badge-user2" class="absolute -bottom-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold">Sujeto 2</span>
+        <!-- Speaker 2: Clicking directly toggles recording for Sujeto 2 -->
+        <button id="talk-user2-btn" class="flex flex-col items-center text-center group focus:outline-none active:scale-95 transition-transform" title="Haz clic aquí para hablar como Sujeto 2">
+          <div id="avatar-user2" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-slate-800 border-2 border-amber-500/50 flex items-center justify-center relative transition-all duration-300 shadow-md group-hover:bg-amber-950/60">
+            <i data-lucide="mic" class="w-7 h-7 sm:w-8 sm:h-8 text-amber-400"></i>
+            <span id="badge-user2" class="absolute -bottom-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold">🎙️ Hablar</span>
           </div>
-          <span id="name-user2" class="text-xs font-semibold text-slate-300 mt-2">Sujeto 2</span>
-          <span id="status-user2" class="text-[10px] text-slate-400">Toca para alternar</span>
+          <span id="name-user2" class="text-xs font-bold text-amber-400 mt-2">Sujeto 2</span>
+          <span id="status-user2" class="text-[10px] text-slate-300">Toca para hablar</span>
         </button>
 
       </div>
 
-      <!-- Live Transcript Preview (Interim Voice Recognition) -->
-      <div id="live-transcript-box" class="mt-3 px-3 py-2 rounded-xl bg-slate-950/80 border border-sky-500/30 text-xs text-sky-200 italic text-center hidden">
-        <span id="live-transcript-text">Escuchando...</span>
+      <!-- Live Recording / Transcription Banner -->
+      <div id="live-transcript-box" class="mt-3 p-2.5 rounded-2xl bg-slate-950/90 border border-rose-500/40 text-xs text-slate-100 text-center hidden">
+        <div class="flex items-center justify-center gap-2 mb-1">
+          <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+          <span id="recording-timer" class="font-mono font-bold text-rose-400">Grabando 00:00s</span>
+        </div>
+        <p id="live-transcript-text" class="text-xs text-sky-200 italic">Habla ahora... cuando termines presiona "Terminé de hablar"</p>
       </div>
 
-      <!-- Status & Real-Time Audio Level Bars -->
-      <div class="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between px-2">
-        <div class="flex items-center gap-2">
-          <span id="live-indicator" class="w-2 h-2 rounded-full bg-slate-600"></span>
-          <span id="stage-status-text" class="text-[11px] text-slate-400">Toca un sujeto arriba para cambiar de turno o usa el micrófono</span>
+      <!-- Real-Time Microphone Volume Meter Bar -->
+      <div class="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between gap-3 px-1">
+        <div class="flex items-center gap-2 min-w-0">
+          <span id="live-indicator" class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+          <span id="stage-status-text" class="text-[11px] text-slate-300 truncate">Toca "Sujeto 1" arriba o el botón de abajo para hablar</span>
         </div>
-        <div class="flex items-end gap-1 h-3.5" id="sound-wave-bars">
-          <span class="w-1 h-1.5 bg-slate-700 rounded-full transition-all duration-75"></span>
-          <span class="w-1 h-2 bg-slate-700 rounded-full transition-all duration-75"></span>
-          <span class="w-1 h-1.5 bg-slate-700 rounded-full transition-all duration-75"></span>
-          <span class="w-1 h-2 bg-slate-700 rounded-full transition-all duration-75"></span>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <div class="w-20 h-2 bg-slate-800 rounded-full overflow-hidden">
+            <div id="mic-volume-bar" class="h-full bg-emerald-400 w-0 transition-all duration-75"></div>
+          </div>
         </div>
       </div>
     </section>
@@ -158,27 +163,33 @@
     </section>
 
     <!-- Cards Stream: Conversation, Data & Exploration Buttons -->
-    <section class="flex-1 overflow-y-auto space-y-3 mb-4 pr-1" id="cards-container">
+    <section class="flex-1 overflow-y-auto space-y-3 mb-3 pr-1" id="cards-container">
       
-      <!-- Initial Onboarding Card -->
-      <div class="p-4 rounded-2xl bg-surface border border-slate-800/80 text-xs text-slate-300 shadow-md">
-        <div class="flex items-center gap-2 mb-2">
+      <!-- Onboarding Card with Instant 1-Click Test Chips -->
+      <div class="p-4 rounded-2xl bg-surface border border-slate-800/80 text-xs text-slate-300 shadow-md space-y-3">
+        <div class="flex items-center gap-2">
           <span class="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
-            <i data-lucide="compass" class="w-4 h-4"></i>
+            <i data-lucide="mic" class="w-4 h-4"></i>
           </span>
-          <strong class="text-white text-sm">Listo para debatir cualquier tema</strong>
+          <strong class="text-white text-sm">Habla con tu micrófono o prueba con 1 clic</strong>
         </div>
-        <p class="leading-relaxed text-slate-300 mb-2.5">
-          Presiona <strong>"Toca para hablar"</strong> (o escribe abajo) y plantea cualquier idea, trivial o profunda.
+        <p class="leading-relaxed text-slate-300">
+          Puedes tocar directamente el círculo de <strong>Sujeto 1</strong> arriba (o el botón grande de abajo) para grabar tu voz. Compatible con <strong>Brave, Chrome, Edge y móviles</strong> gracias al motor Whisper IA integrado en el navegador.
         </p>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-          <div class="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <strong class="text-sky-400 block mb-0.5">👤 Si estás testeando solo:</strong>
-            Plantea una postura; podrás pedirle a la IA que tome la postura contraria o tocar "Sujeto 2" arriba para alternar tú mismo.
-          </div>
-          <div class="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <strong class="text-amber-400 block mb-0.5">👥 Si son 2 personas:</strong>
-            Pueden turnarse en este dispositivo tocando Sujeto 1 / Sujeto 2, o conectarse desde dos teléfonos con el botón <strong>"Conectar 2°"</strong>.
+        <div>
+          <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">
+            ⚡ ¿Quieres testear de inmediato con 1 clic? Toca cualquier ejemplo:
+          </span>
+          <div class="flex flex-wrap gap-1.5">
+            <button class="quick-test-btn text-left text-[11px] px-2.5 py-1.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/30 text-sky-200 border border-sky-500/30 transition" data-prompt="Creo que la semana laboral debería reducirse a 4 días porque aumenta la productividad y reduce el estrés.">
+              💼 "La semana laboral debería ser de 4 días"
+            </button>
+            <button class="quick-test-btn text-left text-[11px] px-2.5 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/30 transition" data-prompt="Las redes sociales están dañando la capacidad de concentración y empatía de los jóvenes.">
+              📱 "¿Las redes sociales nos aíslan o nos conectan?"
+            </button>
+            <button class="quick-test-btn text-left text-[11px] px-2.5 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-500/30 transition" data-prompt="La energía nuclear es indispensable para reemplazar al carbón y frenar el cambio climático.">
+              ⚡ "Energía nuclear vs. 100% renovables"
+            </button>
           </div>
         </div>
       </div>
@@ -193,7 +204,7 @@
           <!-- Main Push-to-Talk Button -->
           <button id="main-mic-btn" class="flex-1 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-brand via-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white font-semibold text-sm transition-all duration-300 shadow-lg shadow-brand/25 flex items-center justify-center gap-2.5 active:scale-[0.98]">
             <i data-lucide="mic" class="w-5 h-5" id="main-mic-icon"></i>
-            <span id="main-mic-label">Toca para hablar (Sujeto 1)</span>
+            <span id="main-mic-label">🎙️ Hablar como Sujeto 1</span>
           </button>
 
           <!-- Stop AI Voice Button (only visible while AI speaks) -->
@@ -206,7 +217,8 @@
         <!-- Text Input Fallback -->
         <div class="flex items-center gap-2 px-1">
           <input type="text" id="text-input" placeholder="O escribe lo que piensas aquí y presiona Enter..." class="flex-1 bg-slate-950/90 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition" />
-          <button id="text-send-btn" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition text-xs font-medium flex items-center gap-1" title="Enviar argumento">
+          <button id="text-send-btn" class="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition text-xs font-semibold flex items-center gap-1" title="Enviar argumento">
+            <span>Enviar</span>
             <i data-lucide="send" class="w-3.5 h-3.5"></i>
           </button>
         </div>

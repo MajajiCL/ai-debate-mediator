@@ -2,10 +2,10 @@
 <html lang="es" class="dark">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Debate Mediator — Sala de Voz & Consenso</title>
-  <meta name="description" content="Plataforma libre y gratuita de mediación de debates por voz P2P estilo Discord. Conecta a dos personas, visualiza consensos y modera con IA a costo cero." />
-  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Debate AI — Sala de Voz & Mediación</title>
+  <meta name="description" content="Espacio minimalista de debate por voz con mediación inteligente en tiempo real." />
+
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -14,28 +14,13 @@
       theme: {
         extend: {
           colors: {
-            discord: {
-              blurple: '#5865F2',
-              green: '#57F287',
-              yellow: '#FEE75C',
-              fuchsia: '#EB459E',
-              red: '#ED4245',
-              dark: '#313338',
-              darker: '#2B2D31',
-              darkest: '#1E1F22'
-            },
-            debaterA: {
-              DEFAULT: '#3b82f6',
-              glow: 'rgba(59, 130, 246, 0.5)'
-            },
-            debaterB: {
-              DEFAULT: '#f59e0b',
-              glow: 'rgba(245, 158, 11, 0.5)'
-            },
-            consensus: {
-              DEFAULT: '#10b981',
-              glow: 'rgba(16, 185, 129, 0.6)'
-            }
+            stage: '#090a0f',
+            surface: '#12141c',
+            surfaceHover: '#1a1d29',
+            brand: '#6366f1',
+            accent: '#10b981',
+            user1: '#38bdf8',
+            user2: '#f59e0b'
           }
         }
       }
@@ -45,506 +30,195 @@
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
 
-  <!-- PeerJS (WebRTC P2P Voice Rooms - 100% Free Public Mesh) -->
+  <!-- PeerJS for Free P2P Voice -->
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 
   <!-- Custom Styles -->
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-emerald-500/30 selection:text-emerald-300">
+<body class="bg-stage text-slate-100 min-h-screen flex flex-col font-sans selection:bg-brand/30 selection:text-indigo-300 overflow-x-hidden">
 
-  <!-- Top Navigation Bar -->
-  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-40 px-4 py-2.5 flex items-center justify-between">
-    <div class="flex items-center gap-3">
-      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 via-emerald-500 to-teal-400 p-0.5 shadow-lg shadow-indigo-500/20">
-        <div class="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-          <i data-lucide="scale" class="w-5 h-5 text-emerald-400"></i>
+  <!-- Mobile-First App Shell Container -->
+  <div class="w-full max-w-xl mx-auto min-h-screen flex flex-col px-4 py-3 sm:py-6 relative">
+
+    <!-- Top Simple App Bar -->
+    <header class="flex items-center justify-between py-2 border-b border-slate-800/80 mb-4">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-brand via-purple-500 to-emerald-400 p-0.5 shadow-md shadow-brand/20">
+          <div class="w-full h-full bg-slate-950 rounded-full flex items-center justify-center">
+            <i data-lucide="sparkles" class="w-4 h-4 text-emerald-400"></i>
+          </div>
         </div>
-      </div>
-      <div>
-        <div class="flex items-center gap-2">
-          <h1 class="text-sm sm:text-base font-bold tracking-tight text-white flex items-center gap-2">
-            AI Debate Mediator
-            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1">
-              <i data-lucide="radio" class="w-2.5 h-2.5 text-indigo-400 animate-pulse"></i> P2P Voice 100% Gratis
-            </span>
+        <div>
+          <h1 class="text-sm font-bold tracking-tight text-white flex items-center gap-1.5">
+            Debate AI
+            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">En vivo</span>
           </h1>
         </div>
-        <p class="text-[11px] text-slate-400 hidden sm:block">Mediación por voz estilo Discord sin costos de servidores ni APIs obligatorias</p>
       </div>
-    </div>
 
-    <!-- Center Consensus Metric -->
-    <div class="hidden md:flex items-center gap-5 px-4 py-1.5 rounded-full bg-slate-950/90 border border-slate-800">
+      <!-- Quick Actions -->
       <div class="flex items-center gap-2">
-        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-        <span class="text-xs text-slate-400">Consenso:</span>
-        <span id="consensus-percentage" class="text-xs font-bold text-emerald-400">0%</span>
+        <!-- Invite Friend Button -->
+        <button id="invite-btn" class="px-2.5 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition flex items-center gap-1.5 border border-slate-700 shadow-sm" title="Invitar a alguien a debatir">
+          <i data-lucide="user-plus" class="w-3.5 h-3.5 text-indigo-400"></i>
+          <span class="text-xs">Invitar</span>
+        </button>
+
+        <!-- Voice Toggle -->
+        <button id="voice-toggle-btn" class="p-2 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 transition border border-slate-700" title="Activar/Silenciar voz de la IA">
+          <i data-lucide="volume-2" class="w-4 h-4 text-emerald-400" id="voice-icon"></i>
+        </button>
+
+        <!-- Reset Button -->
+        <button id="reset-session-btn" class="p-2 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition border border-slate-700" title="Reiniciar conversación">
+          <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+        </button>
       </div>
-      <div class="w-20 h-2 bg-slate-800 rounded-full overflow-hidden">
-        <div id="consensus-progress-bar" class="h-full bg-gradient-to-r from-teal-500 to-emerald-400 w-0 transition-all duration-700"></div>
+    </header>
+
+    <!-- Topic Pill (Dynamic based on what the user says) -->
+    <div id="topic-container" class="mb-4 text-center">
+      <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface border border-slate-800/80 shadow-inner">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-[11px] text-slate-400">Tema:</span>
+        <span id="active-topic-text" class="text-xs font-semibold text-white">¿De qué te gustaría hablar hoy?</span>
       </div>
-      <div class="flex items-center gap-2 text-xs text-slate-400 border-l border-slate-800 pl-3">
-        <span>Tensión:</span>
-        <span id="tension-badge" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-950/80 text-emerald-400 border border-emerald-800">Baja</span>
+    </div>
+
+    <!-- Voice Stage: 3 Circular Speakers (User 1, AI Mediator, User 2 / Sparring) -->
+    <section class="bg-surface/80 border border-slate-800/80 rounded-3xl p-5 mb-4 shadow-xl relative overflow-hidden backdrop-blur-md">
+      <!-- Ambient Glow Behind Stage -->
+      <div class="absolute -top-12 left-1/2 -translate-x-1/2 w-48 h-48 bg-brand/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="grid grid-cols-3 gap-2 items-center justify-items-center relative z-10">
+        
+        <!-- Speaker 1: You -->
+        <div class="flex flex-col items-center text-center">
+          <div id="avatar-user1" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center relative transition-all duration-300 shadow-md">
+            <i data-lucide="user" class="w-7 h-7 sm:w-8 sm:h-8 text-sky-400"></i>
+            <span id="badge-user1" class="absolute -bottom-1 px-1.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/40 text-[9px] font-bold font-mono">Tú</span>
+          </div>
+          <span class="text-xs font-semibold text-slate-200 mt-2">Sujeto 1</span>
+          <span id="status-user1" class="text-[10px] text-slate-400">Listo</span>
+        </div>
+
+        <!-- Speaker Center: AI Mediator Orb -->
+        <div class="flex flex-col items-center text-center">
+          <div id="avatar-ai" class="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-indigo-900 via-emerald-950 to-slate-900 border-2 border-emerald-500/40 flex items-center justify-center relative transition-all duration-300 shadow-lg shadow-emerald-500/10 cursor-pointer">
+            <!-- Pulsing rings when speaking -->
+            <div id="ai-pulse-ring" class="absolute inset-0 rounded-full border border-emerald-400 opacity-0 transition-opacity"></div>
+            <i data-lucide="bot" class="w-9 h-9 sm:w-10 sm:h-10 text-emerald-400"></i>
+            <span class="absolute -bottom-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-bold">IA Mediadora</span>
+          </div>
+          <span class="text-xs font-bold text-emerald-400 mt-2">Mediador Socrático</span>
+          <span id="status-ai" class="text-[10px] text-slate-400">Escuchando</span>
+        </div>
+
+        <!-- Speaker 2: Partner (or AI sparring partner when alone) -->
+        <div class="flex flex-col items-center text-center">
+          <div id="avatar-user2" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center relative transition-all duration-300 shadow-md">
+            <i data-lucide="users" class="w-7 h-7 sm:w-8 sm:h-8 text-amber-400"></i>
+            <span id="badge-user2" class="absolute -bottom-1 px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold font-mono">Sujeto 2</span>
+          </div>
+          <span id="name-user2" class="text-xs font-semibold text-slate-200 mt-2">Contrapunto</span>
+          <span id="status-user2" class="text-[10px] text-slate-400">Esperando</span>
+        </div>
+
       </div>
-    </div>
 
-    <!-- Right Actions -->
-    <div class="flex items-center gap-2">
-      <!-- Voice Room / Discord Mode Button -->
-      <button id="open-room-btn" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition shadow-lg shadow-indigo-600/20 flex items-center gap-1.5 border border-indigo-500/40">
-        <i data-lucide="headphones" class="w-3.5 h-3.5"></i>
-        <span class="hidden sm:inline">Sala de Voz P2P</span>
-        <span class="sm:hidden">Sala</span>
-      </button>
+      <!-- Live Voice Wave / Equalizer Bar -->
+      <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between px-2">
+        <div class="flex items-center gap-2">
+          <span id="live-indicator" class="w-2 h-2 rounded-full bg-slate-600"></span>
+          <span id="stage-status-text" class="text-[11px] text-slate-400">Presiona el micrófono y empieza a hablar</span>
+        </div>
+        <div class="flex items-center gap-1 h-3" id="sound-wave-bars">
+          <span class="w-1 h-2 bg-slate-700 rounded-full transition-all"></span>
+          <span class="w-1 h-3 bg-slate-700 rounded-full transition-all"></span>
+          <span class="w-1 h-1.5 bg-slate-700 rounded-full transition-all"></span>
+          <span class="w-1 h-2 bg-slate-700 rounded-full transition-all"></span>
+        </div>
+      </div>
+    </section>
 
-      <!-- Voice AI Toggle -->
-      <button id="toggle-voice-btn" class="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center gap-1 text-xs border border-slate-700" title="Voz de la IA mediadora">
-        <i data-lucide="volume-2" class="w-4 h-4 text-emerald-400" id="voice-icon"></i>
-      </button>
-
-      <!-- Settings / Free Resources Button -->
-      <button id="open-settings-btn" class="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition border border-slate-700" title="Recursos Gratuitos / Configuración">
-        <i data-lucide="settings" class="w-4 h-4"></i>
-      </button>
-
-      <!-- GitHub Link -->
-      <a href="https://github.com/MajajiCL/ai-debate-mediator" target="_blank" class="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition border border-slate-700" title="Ver repositorio en GitHub">
-        <i data-lucide="github" class="w-4 h-4"></i>
-      </a>
-
-      <!-- Report Button -->
-      <button id="open-report-btn" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs transition shadow-lg shadow-emerald-600/20 flex items-center gap-1">
-        <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
-        <span>Acta</span>
-      </button>
-    </div>
-  </header>
-
-  <!-- Discord-style Voice Banner (when connected) -->
-  <div id="voice-call-bar" class="bg-indigo-950/80 border-b border-indigo-800/60 px-4 py-2 flex flex-wrap items-center justify-between text-xs text-indigo-200 hidden">
-    <div class="flex items-center gap-3">
-      <span class="flex h-3 w-3 relative">
-        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-        <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-      </span>
-      <span><strong>Sala de Voz Activa:</strong> <code id="active-room-code" class="bg-indigo-900/80 px-2 py-0.5 rounded font-mono text-emerald-300">...</code></span>
-      <span class="text-indigo-400">|</span>
-      <span id="p2p-peers-status">Conectado con 1 participante</span>
-    </div>
-    <div class="flex items-center gap-2 mt-1 sm:mt-0">
-      <button id="mute-call-btn" class="px-2.5 py-1 rounded bg-indigo-900/60 hover:bg-indigo-800 text-slate-200 flex items-center gap-1 border border-indigo-700/50">
-        <i data-lucide="mic" class="w-3 h-3 text-emerald-400" id="call-mic-icon"></i>
-        <span id="call-mic-label">Mutear</span>
-      </button>
-      <button id="hangup-call-btn" class="px-2.5 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white flex items-center gap-1">
-        <i data-lucide="phone-off" class="w-3 h-3"></i>
-        <span>Salir de Sala</span>
-      </button>
-    </div>
-  </div>
-
-  <!-- Main Grid Workspace -->
-  <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-0 overflow-hidden relative">
-
-    <!-- LEFT PANEL: Participants & Free Voice Input (3 cols) -->
-    <section class="lg:col-span-3 border-r border-slate-800/80 bg-slate-900/50 flex flex-col h-full overflow-y-auto">
+    <!-- Cards Stream: Clean, readable flow of ideas, consensus and verified data -->
+    <section class="flex-1 overflow-y-auto space-y-3 mb-4 pr-1" id="cards-container">
       
-      <!-- Scenario & Mode Header -->
-      <div class="p-3.5 border-b border-slate-800 bg-slate-900/40">
-        <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider flex items-center justify-between">
-          <span>Modo de Debate</span>
-          <span class="text-[10px] text-indigo-400 font-mono">100% Sin Costo</span>
-        </label>
-        <select id="scenario-select" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
-          <option value="scenario_ai">🤖 IA y Empleo: ¿Destrucción o Evolución?</option>
-          <option value="scenario_energy">⚡ Energía: ¿Nuclear vs. Renovables?</option>
-          <option value="scenario_privacy">🔒 Privacidad vs. Seguridad Ciudadana</option>
-          <option value="custom">🎙️ Debate Libre en Vivo (Voz o Texto)</option>
-        </select>
-        <p id="scenario-description" class="text-[11px] text-slate-400 mt-1.5 italic"></p>
-      </div>
-
-      <!-- Playback Controls (for preset demo scenarios) -->
-      <div id="scenario-controls" class="p-3 border-b border-slate-800 bg-slate-950/40 flex items-center justify-between gap-2">
-        <div class="flex items-center gap-1.5">
-          <button id="step-btn" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium transition flex items-center gap-1 border border-slate-700">
-            <i data-lucide="skip-forward" class="w-3 h-3 text-emerald-400"></i>
-            <span>Paso</span>
-          </button>
-          <button id="autoplay-btn" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition flex items-center gap-1 shadow-md shadow-emerald-600/20">
-            <i data-lucide="play" class="w-3 h-3" id="autoplay-icon"></i>
-            <span id="autoplay-text">Auto</span>
-          </button>
-          <button id="reset-btn" class="p-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 rounded-lg text-xs transition border border-slate-700" title="Reiniciar">
-            <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
-          </button>
-        </div>
-        <span id="step-counter" class="text-xs text-slate-400 font-mono">Paso 0 / 6</span>
-      </div>
-
-      <!-- Microphone Setup / Permission Diagnostic Card -->
-      <div class="p-3 bg-slate-950/60 border-b border-slate-800">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
-            <i data-lucide="mic" class="w-3.5 h-3.5 text-indigo-400"></i>
-            Estado del Micrófono
+      <!-- Welcome card -->
+      <div class="p-4 rounded-2xl bg-surface border border-slate-800/80 text-xs text-slate-300 shadow-md">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
+            <i data-lucide="message-circle" class="w-4 h-4"></i>
           </span>
-          <span id="mic-status-pill" class="text-[10px] px-2 py-0.5 rounded font-mono bg-slate-800 text-slate-400">No activado</span>
+          <strong class="text-white text-sm">¿Cómo funciona?</strong>
         </div>
+        <p class="leading-relaxed mb-2">
+          Aquí tú marcas el ritmo. No hay temas predefinidos:
+        </p>
+        <ol class="list-decimal list-inside space-y-1 text-slate-400 text-[11px]">
+          <li><strong>Presiona el micrófono</strong> abajo y di lo que quieras debatir (ej: <em>"Las redes sociales nos aíslan o nos conectan"</em>).</li>
+          <li>La IA extraerá el tema y aportará <strong>datos objetivos y contrapreguntas socráticas</strong>.</li>
+          <li>Si estás solo, la IA jugará de contrapunto para que puedas <strong>testear y debatir de inmediato</strong>.</li>
+          <li>Si invitas a un amigo, ambos hablarán por voz en directo y la IA mediará sus acuerdos.</li>
+        </ol>
+      </div>
+
+    </section>
+
+    <!-- Bottom Input & Mic Dock (Clean, intuitive, fixed to bottom on mobile) -->
+    <div class="sticky bottom-2 z-30 pt-2">
+      <div class="bg-surface/95 backdrop-blur-lg border border-slate-800/90 rounded-3xl p-2.5 shadow-2xl flex flex-col gap-2">
         
-        <!-- Big explicit Permission Button -->
-        <button id="request-mic-permission-btn" class="w-full py-1.5 px-3 rounded-lg bg-indigo-600/90 hover:bg-indigo-500 text-white text-xs font-medium transition flex items-center justify-center gap-2 border border-indigo-500/30 shadow-md shadow-indigo-600/10">
-          <i data-lucide="mic-check" class="w-3.5 h-3.5 text-emerald-300"></i>
-          <span id="mic-perm-btn-text">Habilitar Micrófono en Navegador</span>
+        <!-- Big Push-to-Talk Button -->
+        <button id="main-mic-btn" class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-brand via-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white font-semibold text-sm transition-all duration-300 shadow-lg shadow-brand/25 flex items-center justify-center gap-2.5 active:scale-[0.98]">
+          <i data-lucide="mic" class="w-5 h-5" id="main-mic-icon"></i>
+          <span id="main-mic-label">Toca para hablar</span>
         </button>
 
-        <!-- Live Volume VU Meter -->
-        <div class="mt-2">
-          <div class="flex justify-between text-[10px] text-slate-500 font-mono mb-0.5">
-            <span>Nivel de audio de entrada:</span>
-            <span id="mic-level-val">0 dB</span>
-          </div>
-          <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-            <div id="mic-level-bar" class="h-full bg-emerald-400 w-0 transition-all duration-75"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Debaters Cards -->
-      <div class="p-3 flex-1 flex flex-col gap-3">
-        <!-- Debater A -->
-        <div class="rounded-xl border border-blue-900/50 bg-blue-950/20 p-2.5 relative transition hover:border-blue-700/60">
-          <div class="flex items-center justify-between mb-1.5">
-            <div class="flex items-center gap-2">
-              <span class="w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-blue-500/20"></span>
-              <span id="debater-a-name" class="text-xs font-bold text-blue-400">Sujeto 1 (Postura A)</span>
-            </div>
-            <button id="mic-a-btn" class="p-1 rounded-md bg-blue-900/40 hover:bg-blue-800 text-blue-300 transition text-[10px] flex items-center gap-1 border border-blue-800/40" title="Dictar por voz">
-              <i data-lucide="mic" class="w-3 h-3"></i>
-              <span class="text-[9px]">Dictar</span>
-            </button>
-          </div>
-          <p id="debater-a-stance" class="text-[11px] text-slate-400 mb-2 leading-relaxed">...</p>
-          <div class="flex gap-1.5">
-            <input type="text" id="input-a-text" placeholder="Escribe argumento del Sujeto 1..." class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500" />
-            <button id="send-a-btn" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium transition">
-              <i data-lucide="send" class="w-3 h-3"></i>
-            </button>
-          </div>
-        </div>
-
-        <!-- Debater B -->
-        <div class="rounded-xl border border-amber-900/50 bg-amber-950/20 p-2.5 relative transition hover:border-amber-700/60">
-          <div class="flex items-center justify-between mb-1.5">
-            <div class="flex items-center gap-2">
-              <span class="w-2.5 h-2.5 rounded-full bg-amber-500 ring-4 ring-amber-500/20"></span>
-              <span id="debater-b-name" class="text-xs font-bold text-amber-400">Sujeto 2 (Postura B)</span>
-            </div>
-            <button id="mic-b-btn" class="p-1 rounded-md bg-amber-900/40 hover:bg-amber-800 text-amber-300 transition text-[10px] flex items-center gap-1 border border-amber-800/40" title="Dictar por voz">
-              <i data-lucide="mic" class="w-3 h-3"></i>
-              <span class="text-[9px]">Dictar</span>
-            </button>
-          </div>
-          <p id="debater-b-stance" class="text-[11px] text-slate-400 mb-2 leading-relaxed">...</p>
-          <div class="flex gap-1.5">
-            <input type="text" id="input-b-text" placeholder="Escribe argumento del Sujeto 2..." class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-amber-500" />
-            <button id="send-b-btn" class="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-medium transition">
-              <i data-lucide="send" class="w-3 h-3"></i>
-            </button>
-          </div>
-        </div>
-
-        <!-- Quick Fact-Checker (Wikipedia Live Free Search) -->
-        <div class="rounded-xl border border-cyan-900/40 bg-cyan-950/20 p-2.5">
-          <div class="flex items-center justify-between mb-1.5">
-            <span class="text-xs font-bold text-cyan-400 flex items-center gap-1">
-              <i data-lucide="book-open" class="w-3 h-3"></i> Wikipedia Fact-Check Libre
-            </span>
-            <span class="text-[9px] px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono">Sin Costo</span>
-          </div>
-          <div class="flex gap-1.5">
-            <input type="text" id="wiki-query-input" placeholder="Consultar dato objetivo (ej: IPCC, PIB...)" class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-cyan-500" />
-            <button id="wiki-search-btn" class="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium transition" title="Consultar en Wikipedia">
-              <i data-lucide="search" class="w-3 h-3"></i>
-            </button>
-          </div>
-        </div>
-
-        <!-- Waveform Oscilloscope -->
-        <div class="mt-auto pt-2 border-t border-slate-800">
-          <div class="flex items-center justify-between text-[11px] text-slate-400 mb-1">
-            <span class="flex items-center gap-1">
-              <i data-lucide="activity" class="w-3 h-3 text-emerald-400"></i>
-              Canal de Audio
-            </span>
-            <span id="audio-speaker-status" class="text-slate-500 font-mono">Silencio</span>
-          </div>
-          <canvas id="waveform-canvas" class="w-full h-10 bg-slate-950 rounded-lg border border-slate-800"></canvas>
-        </div>
-      </div>
-    </section>
-
-    <!-- CENTER PANEL: Dynamic Argument Graph Canvas (6 cols) -->
-    <section class="lg:col-span-6 bg-slate-950 relative flex flex-col h-[520px] lg:h-full border-r border-slate-800/80">
-      <!-- Canvas Header Bar with Filters and Controls -->
-      <div class="absolute top-3 left-3 right-3 z-10 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-        <!-- Legend Pill -->
-        <div class="pointer-events-auto flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-900/90 backdrop-blur-md border border-slate-800 text-[11px] shadow-lg">
-          <span class="flex items-center gap-1 text-blue-400 font-medium">
-            <span class="w-2 h-2 rounded-full bg-blue-500"></span> Sujeto 1
-          </span>
-          <span class="flex items-center gap-1 text-amber-400 font-medium">
-            <span class="w-2 h-2 rounded-full bg-amber-500"></span> Sujeto 2
-          </span>
-          <span class="flex items-center gap-1 text-emerald-400 font-medium">
-            <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Consenso
-          </span>
-          <span class="flex items-center gap-1 text-cyan-400 font-medium">
-            <span class="w-2 h-2 rounded-full bg-cyan-500"></span> Datos
-          </span>
-        </div>
-
-        <!-- Zoom / Reset controls -->
-        <div class="pointer-events-auto flex items-center gap-1 px-2 py-1 rounded-xl bg-slate-900/90 backdrop-blur-md border border-slate-800 shadow-lg">
-          <button id="zoom-in-btn" class="p-1 hover:bg-slate-800 rounded text-slate-300" title="Acercar">
-            <i data-lucide="zoom-in" class="w-3.5 h-3.5"></i>
-          </button>
-          <button id="zoom-out-btn" class="p-1 hover:bg-slate-800 rounded text-slate-300" title="Alejar">
-            <i data-lucide="zoom-out" class="w-3.5 h-3.5"></i>
-          </button>
-          <button id="zoom-reset-btn" class="p-1 hover:bg-slate-800 rounded text-slate-300" title="Centrar grafo">
-            <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
+        <!-- Optional Text Input Fallback -->
+        <div class="flex items-center gap-2 px-1">
+          <input type="text" id="text-input" placeholder="O escribe tu argumento aquí..." class="flex-1 bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition" />
+          <button id="text-send-btn" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition" title="Enviar texto">
+            <i data-lucide="send" class="w-4 h-4"></i>
           </button>
         </div>
+
       </div>
+    </div>
 
-      <!-- Main Interactive Canvas -->
-      <canvas id="graph-canvas" class="w-full h-full cursor-grab active:cursor-grabbing"></canvas>
+  </div>
 
-      <!-- Bottom Hint -->
-      <div class="absolute bottom-3 left-3 text-[11px] text-slate-400 pointer-events-none flex items-center gap-1.5 bg-slate-950/70 px-2.5 py-1 rounded-md backdrop-blur-sm border border-slate-800">
-        <i data-lucide="mouse-pointer" class="w-3 h-3 text-indigo-400"></i>
-        <span>Arrastra nodos con el mouse para reorganizarlos o haz clic para ver su reformulación constructiva.</span>
-      </div>
-
-      <!-- Selected Node Detail Drawer (Overlay) -->
-      <div id="node-inspector" class="absolute bottom-4 right-4 max-w-sm w-full bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-2xl p-4 shadow-2xl transition-all duration-300 translate-y-full opacity-0 pointer-events-none z-20">
-        <div class="flex items-start justify-between mb-2">
-          <span id="inspector-badge" class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Consenso</span>
-          <button id="close-inspector-btn" class="text-slate-400 hover:text-white">
-            <i data-lucide="x" class="w-4 h-4"></i>
-          </button>
-        </div>
-        <h4 id="inspector-title" class="text-xs font-bold text-white mb-1">Título del nodo</h4>
-        <p id="inspector-content" class="text-xs text-slate-300 mb-3 leading-relaxed">Descripción detallada...</p>
-        
-        <div id="inspector-steelman-box" class="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 mb-2">
-          <span class="text-[10px] font-semibold text-emerald-400 flex items-center gap-1 mb-1">
-            <i data-lucide="sparkles" class="w-3 h-3"></i> Reformulación Constructiva (Steelmanning):
-          </span>
-          <p id="inspector-steelman-text" class="text-[11px] text-slate-300 italic">...</p>
-        </div>
-
-        <div id="inspector-fact-box" class="p-2.5 rounded-xl bg-cyan-950/40 border border-cyan-800/40 hidden">
-          <span class="text-[10px] font-semibold text-cyan-400 flex items-center gap-1 mb-1">
-            <i data-lucide="check-circle" class="w-3 h-3"></i> Verificación de Datos:
-          </span>
-          <p id="inspector-fact-text" class="text-[11px] text-slate-300">...</p>
-          <span id="inspector-fact-source" class="text-[9px] text-cyan-400/80 font-mono mt-1 block">Fuente: ...</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- RIGHT PANEL: Live Mediator Intelligence Stream (3 cols) -->
-    <section class="lg:col-span-3 bg-slate-900/40 flex flex-col h-full overflow-hidden">
-      <!-- Tabs Header -->
-      <div class="border-b border-slate-800 px-3 py-2 flex items-center justify-between bg-slate-900/60">
-        <div class="flex items-center gap-1.5">
-          <button id="tab-stream-btn" class="text-xs font-semibold px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 transition">
-            Moderación en Vivo
-          </button>
-          <button id="tab-facts-btn" class="text-xs font-medium px-2 py-1 rounded-md text-slate-400 hover:text-slate-200 transition">
-            Datos Verificados (<span id="fact-count">0</span>)
-          </button>
-        </div>
-        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-      </div>
-
-      <!-- Feed Container -->
-      <div id="stream-container" class="flex-1 p-3.5 overflow-y-auto space-y-3">
-        <!-- Welcoming card from AI Mediator -->
-        <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs">
-          <div class="flex items-center gap-2 mb-1.5">
-            <span class="p-1 rounded-md bg-emerald-500/20 text-emerald-400">
-              <i data-lucide="bot" class="w-3.5 h-3.5"></i>
-            </span>
-            <span class="font-bold text-emerald-400">IA Mediadora Libre</span>
-            <span class="text-[10px] text-slate-500 ml-auto">Activa</span>
-          </div>
-          <p class="text-slate-300 leading-relaxed">
-            Bienvenidos. Esta plataforma opera con recursos libres de la web y cómputo distribuido sin costo. Conecta tus micrófonos o únete a una sala de voz P2P compartiendo tu código.
-          </p>
-        </div>
-      </div>
-
-      <!-- Facts Container (Tab 2) -->
-      <div id="facts-container" class="flex-1 p-3.5 overflow-y-auto space-y-3 hidden">
-        <p class="text-xs text-slate-500 italic text-center py-4">No se han emitido verificaciones de datos aún.</p>
-      </div>
-
-      <!-- Bottom Mini-Status -->
-      <div class="p-2.5 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between text-xs text-slate-400">
-        <div class="flex items-center gap-1.5">
-          <i data-lucide="git-merge" class="w-3.5 h-3.5 text-indigo-400"></i>
-          <span>Nodos: <strong id="nodes-count" class="text-slate-200">0</strong></span>
-        </div>
-        <div class="flex items-center gap-1.5">
-          <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i>
-          <span>Consensos: <strong id="agreements-count" class="text-slate-200">0</strong></span>
-        </div>
-      </div>
-    </section>
-
-  </main>
-
-  <!-- MODAL: P2P Voice Room (Discord-style) -->
-  <div id="room-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-discord-dark border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl">
-      <div class="flex items-center justify-between mb-4">
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-lg bg-discord-blurple flex items-center justify-center">
-            <i data-lucide="headphones" class="w-4 h-4 text-white"></i>
-          </div>
-          <div>
-            <h3 class="text-base font-bold text-white">Sala de Voz P2P (Estilo Discord)</h3>
-            <p class="text-[11px] text-slate-400">Voz en tiempo real entre 2 personas sin servidores pagos</p>
-          </div>
-        </div>
-        <button id="close-room-modal-btn" class="text-slate-400 hover:text-white">
-          <i data-lucide="x" class="w-5 h-5"></i>
+  <!-- MODAL: Invite Friend Link -->
+  <div id="invite-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-surface border border-slate-800 rounded-3xl max-w-sm w-full p-5 shadow-2xl">
+      <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
+        <h3 class="text-sm font-bold text-white flex items-center gap-1.5">
+          <i data-lucide="link" class="w-4 h-4 text-brand"></i> Invitar a otra persona
+        </h3>
+        <button id="close-invite-modal-btn" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-4 h-4"></i>
         </button>
       </div>
-
-      <!-- Room Actions -->
-      <div class="space-y-4 text-xs">
-        <!-- Option 1: Create room -->
-        <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800">
-          <h4 class="font-bold text-slate-200 mb-1 flex items-center gap-1.5">
-            <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-emerald-400"></i> Crear una Nueva Sala
-          </h4>
-          <p class="text-slate-400 text-[11px] mb-2.5">Crea una sala y comparte el código o link con tu compañero de debate para hablar por voz.</p>
-          <button id="create-room-btn" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold transition flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20">
-            <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
-            <span>Generar Sala de Debate</span>
-          </button>
-          
-          <div id="room-created-info" class="mt-3 p-2.5 bg-slate-950 rounded-lg border border-slate-800 hidden">
-            <div class="flex items-center justify-between mb-1">
-              <span class="text-slate-400 text-[10px]">Tu Código de Sala:</span>
-              <span id="created-room-code" class="font-mono font-bold text-emerald-400 text-sm">...</span>
-            </div>
-            <button id="copy-room-link-btn" class="w-full py-1 text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 transition flex items-center justify-center gap-1">
-              <i data-lucide="copy" class="w-3 h-3"></i> Copiar Enlace Directo
-            </button>
-          </div>
-        </div>
-
-        <!-- Option 2: Join room -->
-        <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800">
-          <h4 class="font-bold text-slate-200 mb-1 flex items-center gap-1.5">
-            <i data-lucide="log-in" class="w-3.5 h-3.5 text-indigo-400"></i> Unirme a una Sala Existente
-          </h4>
-          <p class="text-slate-400 text-[11px] mb-2">Ingresa el código que te envió la otra persona para conectarte por voz:</p>
-          <div class="flex gap-2">
-            <input type="text" id="join-room-input" placeholder="Ej: debate-987" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-200 uppercase font-mono focus:outline-none focus:border-indigo-500" />
-            <button id="join-room-btn" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold transition flex items-center gap-1">
-              <span>Conectar</span>
-            </button>
-          </div>
-        </div>
+      <p class="text-xs text-slate-300 mb-3 leading-relaxed">
+        Comparte este enlace con la persona con quien quieras debatir. Se conectarán por voz P2P de inmediato y sin costo:
+      </p>
+      <div class="flex items-center gap-2 bg-slate-950 p-2 rounded-xl border border-slate-800 mb-3">
+        <input type="text" id="share-link-input" readonly class="bg-transparent text-xs text-slate-300 font-mono flex-1 outline-none truncate" />
+        <button id="copy-share-link-btn" class="px-2.5 py-1 bg-brand hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition">
+          Copiar
+        </button>
       </div>
+      <p class="text-[11px] text-slate-500 italic text-center">
+        Si nadie se conecta, puedes debatir y testear directamente con la IA.
+      </p>
     </div>
   </div>
 
-  <!-- MODAL: Free Resources Guide & Settings -->
-  <div id="settings-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-      <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-800">
-        <div class="flex items-center gap-2">
-          <i data-lucide="sparkles" class="w-5 h-5 text-indigo-400"></i>
-          <h3 class="text-base font-bold text-white">Recursos Libres & Gratuitos de Internet</h3>
-        </div>
-        <button id="close-settings-modal-btn" class="text-slate-400 hover:text-white">
-          <i data-lucide="x" class="w-5 h-5"></i>
-        </button>
-      </div>
+  <!-- Audio Element for P2P Remote Speech -->
+  <audio id="remote-audio" autoplay></audio>
 
-      <div class="space-y-4 text-xs">
-        <div class="p-3 bg-indigo-950/30 border border-indigo-900/50 rounded-xl">
-          <h4 class="font-bold text-indigo-300 mb-1">¿Cómo funciona esta app a $0 de costo?</h4>
-          <p class="text-slate-300 leading-relaxed text-[11px]">
-            1. **Voz P2P (WebRTC / PeerJS)**: El audio de la llamada viaja directamente entre tu dispositivo y el de tu compañero (Peer-to-Peer). No pasa por servidores de pago.<br/>
-            2. **IA en el Cliente (Navegador)**: La mediación heurística, los grafos y la lógica socrática corren en tu propio procesador mediante JavaScript moderno.<br/>
-            3. **Datos y Fuentes**: Integra la API pública y abierta de Wikipedia en español para verificar definiciones y hechos sin requerir cuentas pagadas.
-          </p>
-        </div>
-
-        <div>
-          <label class="block font-semibold text-slate-300 mb-1">Google Gemini API Key (100% Opcional / Nivel Gratis)</label>
-          <input type="password" id="gemini-api-key" placeholder="AIzaSy... (Opcional)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500 font-mono" />
-          <p class="text-[11px] text-slate-400 mt-1">Google AI Studio ofrece una clave gratis (Free Tier con 15 consultas por minuto a $0 costo de por vida). Si la dejas vacía, el sistema funciona de maravilla con el motor libre local.</p>
-        </div>
-
-        <div>
-          <label class="block font-semibold text-slate-300 mb-1">Voz de la IA Mediadora</label>
-          <select id="voice-select" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-indigo-500"></select>
-        </div>
-      </div>
-
-      <div class="mt-6 pt-3 border-t border-slate-800 flex justify-end gap-2">
-        <button id="save-settings-btn" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition shadow-lg shadow-indigo-600/20">
-          Guardar Preferencias
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: Export Report -->
-  <div id="report-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-6 shadow-2xl flex flex-col max-h-[85vh]">
-      <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-800">
-        <div class="flex items-center gap-2">
-          <i data-lucide="file-check-2" class="w-5 h-5 text-emerald-400"></i>
-          <h3 class="text-base font-bold text-white">Acta de Mediación y Entendimiento Común</h3>
-        </div>
-        <button id="close-report-modal-btn" class="text-slate-400 hover:text-white">
-          <i data-lucide="x" class="w-5 h-5"></i>
-        </button>
-      </div>
-
-      <div id="report-content" class="flex-1 overflow-y-auto pr-2 text-xs text-slate-300 space-y-4 leading-relaxed font-sans">
-      </div>
-
-      <div class="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between">
-        <span class="text-[11px] text-slate-500 font-mono">AI Debate Mediator P2P</span>
-        <div class="flex items-center gap-2">
-          <button id="copy-report-btn" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition flex items-center gap-1 border border-slate-700">
-            <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copiar Markdown
-          </button>
-          <button id="print-report-btn" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition flex items-center gap-1">
-            <i data-lucide="printer" class="w-3.5 h-3.5"></i> Imprimir / PDF
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Audio element for remote P2P voice -->
-  <audio id="remote-p2p-audio" autoplay></audio>
-
-  <!-- Main JavaScript App -->
+  <!-- App Script -->
   <script src="app.js"></script>
   <script>
     lucide.createIcons();

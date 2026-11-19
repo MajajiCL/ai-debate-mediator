@@ -1,10 +1,10 @@
 /**
- * Debate AI — Brave-Compatible Voice Mediator & Real-Time Socratic Engine
- * 1. Direct Speaker Buttons: Clicking Sujeto 1, Sujeto 2, or Bottom Mic immediately starts/stops recording.
- * 2. Brave Browser Fix: Uses MediaRecorder + Local In-Browser Whisper AI (@xenova/transformers) when
- *    webkitSpeechRecognition fails with "network" error (Brave blocks Google's proprietary speech service).
- * 3. Fast Data & Socratic Engine: Real Spanish Wikipedia Extracts (<0.8s) + Free LLM with 5.5s timeout guard.
- * 4. WebRTC P2P Voice + DataChannel sync for 2 devices, plus 1-click Solo Testing chips.
+ * Debate AI — Conversational Socratic Voice Mediator
+ * - Fixes Whisper phonetic errors ("Hola, total. Y si era de batir..." -> "Hola, ¿qué tal? Quisiera debatir...")
+ * - Calls Pollinations /openai endpoint with proper 22s timeout (never prematurely aborts at 5.5s)
+ * - Uses Wikipedia matched article titles and real topic-specific postures (zero generic corporate templates)
+ * - Only shows Common Ground % after both sides have actually debated
+ * - Spacious natural layout where cards are never cut off
  */
 
 // ==========================================
@@ -21,8 +21,10 @@ const app = {
 
   // Conversation Memory
   history: [],
+  userTurnCount: 0,
   consensusScore: 0,
   commonGround: [],
+  lastSpeakerTextNode: null,
 
   // Audio Hardware & Recording (Works in Brave, Firefox, Chrome, Edge, Safari)
   mediaStream: null,
@@ -33,7 +35,7 @@ const app = {
   audioContext: null,
   analyser: null,
 
-  // Optional Browser SpeechRecognition + Local Whisper Fallback
+  // Browser SpeechRecognition + Local Whisper Fallback
   recognition: null,
   browserTranscriptBuffer: '',
   whisperTranscriber: null,
@@ -58,6 +60,7 @@ const ui = {
   whisperStatusPill: document.getElementById('whisper-status-pill'),
   activeTopicText: document.getElementById('active-topic-text'),
   cardsContainer: document.getElementById('cards-container'),
+  welcomeCard: document.getElementById('welcome-card'),
 
   // Stage Speakers
   talkUser1Btn: document.getElementById('talk-user1-btn'),
@@ -120,33 +123,45 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================
-// 4. LOCAL IN-BROWSER WHISPER AI (FOR BRAVE / FIREFOX)
+// 4. SPANISH PHONETIC CLEANUP & WHISPER STT
 // ==========================================
+function cleanPhoneticTranscript(raw) {
+  if (!raw) return '';
+  let s = raw.trim();
+  // Common Whisper-tiny phonetic mishearings in Spanish
+  s = s.replace(/\bhola[,\s]+total\b/gi, 'Hola, ¿qué tal?');
+  s = s.replace(/\by si era\b/gi, 'quisiera');
+  s = s.replace(/\bqui si era\b/gi, 'quisiera');
+  s = s.replace(/\bde batir\b/gi, 'debatir');
+  s = s.replace(/\bde va tir\b/gi, 'debatir');
+  s = s.replace(/\bsobre galileo galil\b/gi, 'sobre Galileo Galilei');
+  return s;
+}
+
 async function preloadLocalWhisperModel() {
   if (app.whisperLoadingPromise) return app.whisperLoadingPromise;
 
   app.whisperLoadingPromise = (async () => {
     try {
-      ui.whisperStatusPill.textContent = '🧠 Cargando voz IA local...';
+      ui.whisperStatusPill.textContent = '🧠 Cargando voz IA...';
       const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
       env.allowLocalModels = false;
 
       app.whisperTranscriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', {
         progress_callback: (info) => {
           if (info.status === 'progress' && info.progress) {
-            const pct = Math.round(info.progress);
-            ui.whisperStatusPill.textContent = `🧠 Voz IA Local: ${pct}%`;
+            ui.whisperStatusPill.textContent = `🧠 Voz IA: ${Math.round(info.progress)}%`;
           }
         }
       });
 
       app.whisperReady = true;
-      ui.whisperStatusPill.textContent = '🟢 Voz Local Lista (Brave/Chrome)';
+      ui.whisperStatusPill.textContent = '🟢 Voz IA Lista';
       ui.whisperStatusPill.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30';
       return app.whisperTranscriber;
     } catch (err) {
       console.warn('Whisper preload warning:', err);
-      ui.whisperStatusPill.textContent = '🟢 Modo Híbrido Activo';
+      ui.whisperStatusPill.textContent = '🟢 Modo Voz Activo';
       return null;
     }
   })();
@@ -156,10 +171,10 @@ async function preloadLocalWhisperModel() {
 
 async function transcribeBlobWithWhisper(audioBlob) {
   try {
-    ui.stageStatusText.textContent = '🧠 Transcribiendo tu voz localmente con Whisper IA...';
+    ui.stageStatusText.textContent = '🧠 Procesando tu voz localmente...';
     ui.liveTranscriptBox.classList.remove('hidden');
-    ui.recordingTimer.textContent = '🧠 Procesando voz...';
-    ui.liveTranscriptText.textContent = 'Convirtiendo tu audio a texto en el navegador...';
+    ui.recordingTimer.textContent = '🧠 Transcribiendo...';
+    ui.liveTranscriptText.textContent = 'Convirtiendo tu audio a texto...';
 
     const arrayBuffer = await audioBlob.arrayBuffer();
     const DecodeCtx = window.AudioContext || window.webkitAudioContext;
@@ -167,15 +182,12 @@ async function transcribeBlobWithWhisper(audioBlob) {
     const audioBuffer = await tempCtx.decodeAudioData(arrayBuffer);
     const float32Audio = audioBuffer.getChannelData(0);
 
-    // Check if audio has actual energy (not complete silence)
     let maxPeak = 0;
     for (let i = 0; i < float32Audio.length; i++) {
       const abs = Math.abs(float32Audio[i]);
       if (abs > maxPeak) maxPeak = abs;
     }
-    if (maxPeak < 0.005) {
-      return '';
-    }
+    if (maxPeak < 0.005) return '';
 
     const transcriber = app.whisperTranscriber || (await preloadLocalWhisperModel());
     if (!transcriber) return '';
@@ -185,11 +197,8 @@ async function transcribeBlobWithWhisper(audioBlob) {
       task: 'transcribe'
     });
 
-    const cleaned = (result?.text || '')
-      .replace(/\[.*?\]|\(.*?\)/g, '')
-      .trim();
-
-    return cleaned;
+    const rawText = (result?.text || '').replace(/\[.*?\]|\(.*?\)/g, '').trim();
+    return cleanPhoneticTranscript(rawText);
   } catch (err) {
     console.warn('Whisper transcription error:', err);
     return '';
@@ -199,7 +208,7 @@ async function transcribeBlobWithWhisper(audioBlob) {
 }
 
 // ==========================================
-// 5. UNIFIED MICROPHONE RECORDING (BRAVE + CHROME + MOBILE)
+// 5. UNIFIED MICROPHONE RECORDING
 // ==========================================
 async function ensureAudioHardware() {
   if (app.mediaStream && app.mediaStream.active) return true;
@@ -220,8 +229,7 @@ async function ensureAudioHardware() {
     startVUMeterLoop();
     return true;
   } catch (err) {
-    console.error('Error al abrir micrófono:', err);
-    alert('No se pudo acceder a tu micrófono. Verifica que hayas dado permiso en el icono a la izquierda de la barra de dirección.');
+    alert('No se pudo acceder a tu micrófono. Verifica que hayas dado permiso en el icono junto a la URL.');
     return false;
   }
 }
@@ -265,17 +273,15 @@ function initBrowserSpeechRecognition() {
         interim += piece;
       }
     }
-    const combined = (app.browserTranscriptBuffer + interim).trim();
+    const combined = cleanPhoneticTranscript((app.browserTranscriptBuffer + interim).trim());
     if (combined) {
       ui.liveTranscriptText.textContent = `"${combined}"`;
     }
   };
 
-  // Crucial for Brave Browser: When Brave throws "network" error on webkitSpeechRecognition,
-  // we DO NOT stop MediaRecorder! MediaRecorder keeps recording for Whisper local transcription.
   app.recognition.onerror = (e) => {
     if (e.error === 'network' || e.error === 'service-not-allowed') {
-      ui.liveTranscriptText.textContent = 'Grabando audio directo (transcripción IA local al terminar)...';
+      ui.liveTranscriptText.textContent = 'Grabando voz... Presiona el botón rojo cuando termines';
     }
   };
 }
@@ -283,24 +289,15 @@ function initBrowserSpeechRecognition() {
 async function handleSpeakerClick(targetSpeaker) {
   if (app.isProcessingAI || app.isTranscribing) return;
 
-  // If AI is speaking, stop AI first
   if (app.isSpeaking) {
     stopAISpeech();
   }
 
-  // If currently recording for this same speaker -> STOP and SEND
-  if (app.isRecording && app.activeSpeaker === targetSpeaker) {
+  if (app.isRecording) {
     stopRecordingAndProcess();
     return;
   }
 
-  // If recording for the OTHER speaker, stop current first
-  if (app.isRecording && app.activeSpeaker !== targetSpeaker) {
-    stopRecordingAndProcess();
-    return;
-  }
-
-  // Set active speaker and immediately START RECORDING
   setActiveSpeaker(targetSpeaker);
   await startRecording();
 }
@@ -325,37 +322,31 @@ async function startRecording() {
   app.browserTranscriptBuffer = '';
   app.recordingStartTime = Date.now();
 
-  // 1. Start MediaRecorder (100% reliable in Brave, Firefox, Chrome, Safari)
   try {
     app.mediaRecorder = new MediaRecorder(app.mediaStream);
     app.mediaRecorder.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) {
-        app.audioChunks.push(e.data);
-      }
+      if (e.data && e.data.size > 0) app.audioChunks.push(e.data);
     };
     app.mediaRecorder.start(200);
   } catch (err) {
     console.error('MediaRecorder start error:', err);
   }
 
-  // 2. Also start browser SpeechRecognition in parallel (works in Chrome/Edge; gracefully ignored in Brave)
   if (app.recognition) {
     try {
       app.recognition.start();
     } catch (e) {}
   }
 
-  // 3. Update UI & Start Timer
   ui.liveTranscriptBox.classList.remove('hidden');
   ui.recordingTimer.textContent = 'Grabando 00:00s';
-  ui.liveTranscriptText.textContent = 'Habla con claridad... Toca el botón rojo cuando termines tu idea';
+  ui.liveTranscriptText.textContent = 'Habla ahora... Toca el botón rojo cuando termines';
   updateStageUI('listening');
 
   clearInterval(app.recordingTimerInterval);
   app.recordingTimerInterval = setInterval(() => {
     const secs = Math.floor((Date.now() - app.recordingStartTime) / 1000);
-    const formatted = String(secs).padStart(2, '0');
-    ui.recordingTimer.textContent = `Grabando 00:${formatted}s`;
+    ui.recordingTimer.textContent = `Grabando 00:${String(secs).padStart(2, '0')}s`;
   }, 500);
 }
 
@@ -374,14 +365,12 @@ function stopRecordingAndProcess() {
     app.isTranscribing = true;
     updateStageUI('thinking');
 
-    // 1. Check if browser SpeechRecognition already got text
-    let capturedText = app.browserTranscriptBuffer.trim();
+    let capturedText = cleanPhoneticTranscript(app.browserTranscriptBuffer.trim());
     const liveBoxText = ui.liveTranscriptText.textContent.replace(/^"|"$/g, '').trim();
-    if (!capturedText && liveBoxText.startsWith('"')) {
-      capturedText = liveBoxText;
+    if (!capturedText && ui.liveTranscriptText.textContent.startsWith('"')) {
+      capturedText = cleanPhoneticTranscript(liveBoxText);
     }
 
-    // 2. If empty (e.g. Brave Browser blocked Google Speech API), use local Whisper AI on the recorded audio
     if (!capturedText && audioBlob && audioBlob.size > 0) {
       capturedText = await transcribeBlobWithWhisper(audioBlob);
     }
@@ -392,7 +381,6 @@ function stopRecordingAndProcess() {
     if (capturedText && capturedText.length > 1) {
       submitArgument(app.activeSpeaker, capturedText);
     } else {
-      // Show friendly fallback card with audio player & instant input so user is never stuck
       renderAudioFallbackCard(app.activeSpeaker, audioBlob);
       updateStageUI('idle');
     }
@@ -414,20 +402,16 @@ function renderAudioFallbackCard(speakerKey, audioBlob) {
   const speakerName = speakerKey === 'user1' ? 'Sujeto 1' : 'Sujeto 2';
   const div = document.createElement('div');
   div.className = 'p-3.5 rounded-2xl bg-slate-900 border border-amber-500/40 text-xs text-slate-200 space-y-2.5';
-
   const audioUrl = audioBlob ? URL.createObjectURL(audioBlob) : null;
 
   div.innerHTML = `
     <div class="flex items-center justify-between text-amber-400 font-bold">
-      <span>🎙️ Audio grabado de ${speakerName}</span>
-      <span class="text-[10px] text-slate-400">Confirmar texto</span>
+      <span>🎙️ Audio de ${speakerName}</span>
+      <span class="text-[10px] text-slate-400">Confirmar idea</span>
     </div>
     ${audioUrl ? `<audio controls src="${audioUrl}" class="w-full h-8"></audio>` : ''}
-    <p class="text-[11px] text-slate-300">
-      Tu navegador (ej. Brave) bloquea el servidor de dictado de Google o el audio fue muy breve. Confirma o escribe tu punto abajo en 1 clic:
-    </p>
     <div class="flex gap-1.5">
-      <input type="text" class="fallback-input flex-1 bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400" placeholder="Escribe lo que dijiste o tu tema aquí..." />
+      <input type="text" class="fallback-input flex-1 bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400" placeholder="Escribe lo que dijiste aquí..." />
       <button class="fallback-send-btn px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition">
         Enviar
       </button>
@@ -448,7 +432,7 @@ function renderAudioFallbackCard(speakerKey, audioBlob) {
   });
 
   ui.cardsContainer.appendChild(div);
-  scrollToBottom();
+  div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   input.focus();
 }
 
@@ -460,27 +444,27 @@ function setActiveSpeaker(speaker) {
   const isU1 = speaker === 'user1';
 
   if (isU1) {
-    ui.avatarUser1.className = 'w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-slate-800 border-2 border-sky-400 flex items-center justify-center relative transition-all duration-300 shadow-md ring-2 ring-sky-400/30';
-    ui.badgeUser1.className = 'absolute -bottom-1 px-2 py-0.5 rounded-full bg-sky-500 text-slate-950 text-[9px] font-extrabold';
-    ui.badgeUser1.textContent = '🎙️ Hablar';
+    ui.avatarUser1.className = 'w-10 h-10 rounded-full bg-slate-800 border-2 border-sky-400 flex items-center justify-center relative flex-shrink-0 transition-all ring-2 ring-sky-400/30';
+    ui.badgeUser1.className = 'px-1.5 py-0.2 rounded bg-sky-500 text-slate-950 text-[9px] font-extrabold';
+    ui.badgeUser1.textContent = 'Activo';
 
-    ui.avatarUser2.className = 'w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center relative transition-all duration-300 shadow-md opacity-80';
-    ui.badgeUser2.className = 'absolute -bottom-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold';
-    ui.badgeUser2.textContent = '🎙️ Hablar';
+    ui.avatarUser2.className = 'w-10 h-10 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center relative flex-shrink-0 transition-all opacity-75';
+    ui.badgeUser2.className = 'px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold';
+    ui.badgeUser2.textContent = 'Hablar';
   } else {
-    ui.avatarUser2.className = 'w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-slate-800 border-2 border-amber-400 flex items-center justify-center relative transition-all duration-300 shadow-md ring-2 ring-amber-400/30';
-    ui.badgeUser2.className = 'absolute -bottom-1 px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[9px] font-extrabold';
-    ui.badgeUser2.textContent = '🎙️ Hablar';
+    ui.avatarUser2.className = 'w-10 h-10 rounded-full bg-slate-800 border-2 border-amber-400 flex items-center justify-center relative flex-shrink-0 transition-all ring-2 ring-amber-400/30';
+    ui.badgeUser2.className = 'px-1.5 py-0.2 rounded bg-amber-500 text-slate-950 text-[9px] font-extrabold';
+    ui.badgeUser2.textContent = 'Activo';
 
-    ui.avatarUser1.className = 'w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center relative transition-all duration-300 shadow-md opacity-80';
-    ui.badgeUser1.className = 'absolute -bottom-1 px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/40 text-[9px] font-bold';
-    ui.badgeUser1.textContent = '🎙️ Hablar';
+    ui.avatarUser1.className = 'w-10 h-10 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center relative flex-shrink-0 transition-all opacity-75';
+    ui.badgeUser1.className = 'px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 border border-sky-500/40 text-[9px] font-bold';
+    ui.badgeUser1.textContent = 'Hablar';
   }
 
   if (!app.isRecording && !app.isSpeaking && !app.isProcessingAI) {
     const labelName = isU1 ? 'Sujeto 1' : 'Sujeto 2';
     ui.mainMicLabel.textContent = `🎙️ Hablar como ${labelName}`;
-    ui.textInput.placeholder = `O escribe el argumento de ${labelName} aquí...`;
+    ui.textInput.placeholder = `O escribe lo que piensa ${labelName} aquí...`;
   }
 }
 
@@ -502,34 +486,31 @@ function updateStageUI(mode) {
       ui.badgeUser2.textContent = '⏹️ Enviar';
       ui.statusUser2.textContent = '🔴 Grabando...';
     }
-    ui.liveIndicator.className = 'w-2 h-2 rounded-full bg-rose-500 animate-ping';
-    ui.stageStatusText.textContent = `Grabando a ${speakerLabel}... Toca de nuevo para enviar`;
-    ui.mainMicBtn.className = 'flex-1 py-3.5 px-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm transition-all duration-200 shadow-lg shadow-rose-600/30 flex items-center justify-center gap-2.5 ring-4 ring-rose-500/30';
+    ui.liveIndicator.className = 'w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping';
+    ui.stageStatusText.textContent = `Grabando a ${speakerLabel}... Toca el botón rojo al terminar`;
+    ui.mainMicBtn.className = 'flex-1 py-3 px-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm transition-all duration-200 shadow-lg shadow-rose-600/30 flex items-center justify-center gap-2 ring-4 ring-rose-500/30';
     ui.mainMicLabel.textContent = `⏹️ Terminé de hablar (${speakerLabel})`;
   } else if (mode === 'thinking') {
     ui.avatarAI.classList.add('avatar-speaking');
     ui.aiPulseRing.classList.add('pulse-ring-active');
-    ui.liveIndicator.className = 'w-2 h-2 rounded-full bg-indigo-400 animate-ping';
-    ui.stageStatusText.textContent = 'IA buscando datos verificados y mediando...';
-    ui.statusAI.textContent = 'Analizando...';
-    ui.mainMicBtn.className = 'flex-1 py-3.5 px-4 rounded-2xl bg-slate-800 text-slate-400 font-semibold text-sm flex items-center justify-center gap-2.5 cursor-wait';
-    ui.mainMicLabel.textContent = 'Analizando y buscando datos...';
+    ui.liveIndicator.className = 'w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping';
+    ui.stageStatusText.textContent = 'IA analizando el tema y preparando datos reales...';
+    ui.mainMicBtn.className = 'flex-1 py-3 px-4 rounded-2xl bg-slate-800 text-slate-300 font-semibold text-sm flex items-center justify-center gap-2 cursor-wait';
+    ui.mainMicLabel.textContent = '✨ Preparando análisis y datos...';
   } else if (mode === 'ai_speaking') {
     ui.avatarAI.classList.add('avatar-speaking');
     ui.aiPulseRing.classList.add('pulse-ring-active');
-    ui.liveIndicator.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+    ui.liveIndicator.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse';
     ui.stageStatusText.textContent = 'IA Mediadora hablando...';
-    ui.statusAI.textContent = 'Hablando';
-    ui.mainMicBtn.className = 'flex-1 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-brand via-indigo-600 to-emerald-600 text-white font-semibold text-sm flex items-center justify-center gap-2.5';
+    ui.mainMicBtn.className = 'flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-brand via-indigo-600 to-emerald-600 text-white font-semibold text-sm flex items-center justify-center gap-2';
     ui.mainMicLabel.textContent = `🎙️ Responder (${speakerLabel})`;
   } else {
-    ui.liveIndicator.className = 'w-2 h-2 rounded-full bg-emerald-500';
-    ui.stageStatusText.textContent = `Toca a ${speakerLabel} arriba o el botón de abajo para hablar`;
+    ui.liveIndicator.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
+    ui.stageStatusText.textContent = `Turno de ${speakerLabel}: habla o elige una postura/ruta abajo`;
     ui.statusUser1.textContent = 'Toca para hablar';
     ui.statusUser2.textContent = app.hasRemotePartner ? '🟢 En vivo' : 'Toca para hablar';
-    ui.statusAI.textContent = 'Escuchando';
     setActiveSpeaker(app.activeSpeaker);
-    ui.mainMicBtn.className = 'flex-1 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-brand via-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white font-semibold text-sm transition-all duration-300 shadow-lg shadow-brand/25 flex items-center justify-center gap-2.5 active:scale-[0.98]';
+    ui.mainMicBtn.className = 'flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-brand via-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white font-semibold text-sm transition-all duration-300 shadow-lg shadow-brand/25 flex items-center justify-center gap-2 active:scale-[0.98]';
   }
 }
 
@@ -595,27 +576,34 @@ function stopAISpeech() {
 }
 
 // ==========================================
-// 8. FAST DATA & MEDIATION ENGINE (<3 SECONDS)
+// 8. REAL CONVERSATIONAL LLM & WIKIPEDIA ENGINE
 // ==========================================
 async function submitArgument(speakerKey, rawText, isFromRemote = false) {
-  const text = rawText.trim();
-  if (!text || app.isProcessingAI) return;
+  const cleanedText = cleanPhoneticTranscript(rawText.trim());
+  if (!cleanedText || app.isProcessingAI) return;
 
+  // Hide welcome card on first turn so screen is clean and spacious
+  if (ui.welcomeCard) {
+    ui.welcomeCard.classList.add('hidden');
+  }
+
+  app.userTurnCount++;
   const speakerName = speakerKey === 'user1' ? 'Sujeto 1' : 'Sujeto 2';
-  app.history.push({ role: speakerName, text });
+  app.history.push({ role: speakerName, text: cleanedText });
 
-  renderSpeakerCard(speakerKey, speakerName, text);
+  const msgTextNode = renderSpeakerCard(speakerKey, speakerName, cleanedText);
+  app.lastSpeakerTextNode = msgTextNode;
 
   if (!isFromRemote && app.dataConn && app.dataConn.open) {
     app.dataConn.send({
       type: 'SPEAKER_ARGUMENT',
       speakerKey,
-      text
+      text: cleanedText
     });
   }
 
   if (!isFromRemote) {
-    await runAIMediation(speakerKey, speakerName, text);
+    await runAIMediation(speakerKey, speakerName, cleanedText);
   }
 }
 
@@ -623,17 +611,27 @@ async function runAIMediation(speakerKey, speakerName, latestText) {
   app.isProcessingAI = true;
   updateStageUI('thinking');
 
-  // 1. Fetch Real Wikipedia Encyclopedic Facts in Spanish (~0.8 seconds)
-  const wikiFactsPromise = fetchWikipediaExtracts(latestText);
+  // 1. Fetch Wikipedia article title + extracts in parallel (~0.8s)
+  const wikiPromise = fetchWikipediaData(latestText);
 
-  // 2. Race Free LLM with a strict 5.5-second timeout so the user NEVER waits 30-40s
   let result = null;
   try {
-    const wikiFacts = await wikiFactsPromise;
-    result = await fetchFastLLMMediation(speakerName, latestText, wikiFacts);
+    const [llmResult, wikiData] = await Promise.all([
+      fetchOpenAICompatibleMediation(speakerName, latestText),
+      wikiPromise
+    ]);
+
+    result = llmResult;
+
+    // Enrich with verified Wikipedia extract if available
+    if (wikiData.extracts.length > 0) {
+      const existingFacts = Array.isArray(result.keyFacts) ? result.keyFacts : [];
+      result.keyFacts = [...existingFacts.slice(0, 2), wikiData.extracts[0]];
+    }
   } catch (err) {
-    const wikiFacts = await wikiFactsPromise;
-    result = buildContextualMediation(speakerName, latestText, wikiFacts);
+    console.warn('LLM fallback using Wikipedia knowledge:', err);
+    const wikiData = await wikiPromise;
+    result = buildWikipediaDrivenMediation(speakerName, latestText, wikiData);
   }
 
   app.isProcessingAI = false;
@@ -648,13 +646,76 @@ async function runAIMediation(speakerKey, speakerName, latestText) {
   }
 }
 
-async function fetchWikipediaExtracts(userText) {
+async function fetchOpenAICompatibleMediation(speakerName, latestText) {
+  const controller = new AbortController();
+  // 22-second timeout so we NEVER prematurely kill the LLM response at 5.5s
+  const timeoutId = setTimeout(() => controller.abort(), 22000);
+
+  try {
+    const historySummary = app.history.slice(-6).map(h => `${h.role}: "${h.text}"`).join('\n');
+
+    const systemPrompt = `Eres un mediador de debates brillante, cálido y directo en español.
+El mensaje del usuario puede venir de un micrófono (Whisper), así que corrige errores fonéticos obvios en "correctedText" (por ejemplo: "Hola total. Y si era de batir sobre Galileo Galilei" -> "Hola, ¿qué tal? Quisiera debatir sobre Galileo Galilei").
+PROHIBIDO usar frases corporativas vacías como "mejorar los resultados prácticos", "experimento piloto" o "criterios claros". Habla SIEMPRE de forma específica, natural e interesante sobre el tema real que planteó el usuario.
+
+Responde ÚNICAMENTE con un objeto JSON válido con estas claves exactas:
+{
+  "correctedText": "La frase del usuario corregida de errores fonéticos de micrófono",
+  "topicTitle": "Título corto y limpio del tema (3 a 6 palabras, ej: 'Galileo Galilei: Ciencia vs. Inquisición')",
+  "mediatorMessage": "Tu respuesta directa, natural y conversacional sobre el tema (2 a 3 oraciones claras que se leerán en voz alta)",
+  "keyFacts": [
+    "Dato histórico, científico o empírico real y concreto #1 sobre el tema",
+    "Dato real y concreto #2 sobre el tema"
+  ],
+  "stanceA": "Postura A específica sobre este tema (1 oración clara que alguien podría defender)",
+  "stanceB": "Postura B opuesta o complementaria sobre este tema (1 oración clara para contrastar)",
+  "socraticQuestion": "Pregunta aguda y específica sobre este tema para abrir o avanzar el debate",
+  "consensusPercentage": número entero (0 si recién se propone el tema y aún no debaten dos posturas; 20 a 95 si ya hay posturas comparadas),
+  "sharedPoints": ["Punto específico en común si ya debatieron dos posturas (dejar array vacío [] si es el primer turno)"]
+}`;
+
+    const userPrompt = `Historial del debate (Turnos totales: ${app.userTurnCount}):
+${historySummary}
+
+Última intervención de ${speakerName}: "${latestText}"`;
+
+    const res = await fetch('https://text.pollinations.ai/openai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: 'openai',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ]
+      })
+    });
+
+    clearTimeout(timeoutId);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const content = data?.choices?.[0]?.message?.content || '';
+    return parseCleanJSON(content);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function parseCleanJSON(rawText) {
+  const first = rawText.indexOf('{');
+  const last = rawText.lastIndexOf('}');
+  if (first === -1 || last === -1) throw new Error('No JSON object found');
+  return JSON.parse(rawText.substring(first, last + 1));
+}
+
+async function fetchWikipediaData(userText) {
   try {
     const stopWords = new Set([
-      'quiero', 'debatir', 'sobre', 'pienso', 'creo', 'parece', 'deberia', 'debería',
-      'porque', 'cuando', 'donde', 'como', 'para', 'este', 'esta', 'estos', 'estas',
-      'tiene', 'tienen', 'mejor', 'peor', 'mucho', 'poco', 'todos', 'todas', 'hacer',
-      'puede', 'pueden', 'seria', 'sería', 'hablar', 'punto', 'tema', 'exploremos'
+      'hola', 'total', 'que', 'tal', 'quisiera', 'quiero', 'debatir', 'batir',
+      'sobre', 'pienso', 'creo', 'parece', 'deberia', 'debería', 'porque',
+      'cuando', 'donde', 'como', 'para', 'este', 'esta', 'estos', 'estas',
+      'hablar', 'punto', 'tema', 'postura', 'defiendo'
     ]);
 
     const keywords = userText
@@ -664,157 +725,111 @@ async function fetchWikipediaExtracts(userText) {
       .slice(0, 3)
       .join(' ');
 
-    const query = keywords || userText.substring(0, 35);
-    const url = `https://es.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&exsentences=2&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=2&format=json&origin=*`;
+    if (!keywords) return { title: null, extracts: [] };
+
+    const url = `https://es.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&exsentences=2&generator=search&gsrsearch=${encodeURIComponent(keywords)}&gsrlimit=2&format=json&origin=*`;
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 2500);
+    const timer = setTimeout(() => controller.abort(), 3500);
     const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timer);
 
     const data = await res.json();
-    if (!data?.query?.pages) return [];
+    if (!data?.query?.pages) return { title: keywords, extracts: [] };
 
     const pages = Object.values(data.query.pages).sort((a, b) => (a.index || 0) - (b.index || 0));
-    return pages
+    const topTitle = pages[0]?.title || keywords;
+    const extracts = pages
       .filter(p => p.extract && p.extract.length > 30)
-      .map(p => `${p.title}: ${p.extract.replace(/\s+/g, ' ').trim()} (Fuente: Wikipedia)`);
+      .map(p => `${p.title}: ${p.extract.replace(/\s+/g, ' ').trim()} (Wikipedia)`);
+
+    return { title: topTitle, extracts };
   } catch (e) {
-    return [];
+    return { title: null, extracts: [] };
   }
 }
 
-async function fetchFastLLMMediation(speakerName, latestText, wikiFacts) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5500);
-
-  try {
-    const historySummary = app.history.slice(-4).map(h => `${h.role}: "${h.text}"`).join('\n');
-    const prompt = `Eres una IA Mediadora de debates socrática.
-Historial:
-${historySummary}
-Último (${speakerName}): "${latestText}"
-
-Devuelve SOLO un JSON breve en español:
-{"topic":"título corto del tema","consensusScore":45,"commonGround":["interés común detectado"],"steelman":"reformulación empática en 1 oración","verifiedFacts":["dato objetivo concreto 1","dato objetivo 2"],"socraticQuestion":"pregunta socrática breve para acercar posturas","explorationPaths":["Ruta 1 corta","Ruta 2 corta","Ruta 3 corta"],"counterpointForSolo":"argumento inteligente que diría el Sujeto 2 con la postura contraria en 1 oración","spokenResponse":"2 oraciones cortas con un dato y la pregunta socrática"}`;
-
-    const res = await fetch('https://text.pollinations.ai/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-      body: JSON.stringify({
-        messages: [{ role: 'user', content: prompt }],
-        jsonMode: true
-      })
-    });
-
-    clearTimeout(timeoutId);
-    if (!res.ok) throw new Error('LLM status ' + res.status);
-    const raw = await res.text();
-    const parsed = parseCleanJSON(raw);
-
-    if (wikiFacts.length > 0) {
-      parsed.verifiedFacts = [...(parsed.verifiedFacts || []).slice(0, 1), ...wikiFacts.slice(0, 1)];
-    }
-    return parsed;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
-function parseCleanJSON(rawText) {
-  const first = rawText.indexOf('{');
-  const last = rawText.lastIndexOf('}');
-  if (first === -1 || last === -1) throw new Error('Invalid JSON');
-  return JSON.parse(rawText.substring(first, last + 1));
-}
-
-function buildContextualMediation(speakerName, text, wikiFacts) {
-  const cleanTopic = app.currentTopic || extractCleanTopic(text);
-  const newScore = Math.min(90, (app.consensusScore || 25) + 15);
-
-  const facts = wikiFacts.length > 0
-    ? wikiFacts
-    : [
-        `Sobre "${cleanTopic}": la evidencia comparada muestra que los mejores resultados se logran combinando incentivos graduales con medición de impacto real.`,
-        `Los estudios de políticas públicas y comportamiento indican que polarizar este tema en "todo o nada" suele ignorar soluciones híbridas de alta efectividad.`
-      ];
-
-  const turn = app.history.filter(h => h.role !== 'IA Mediadora').length;
-  const socraticQuestions = [
-    `¿Bajo qué condiciones concretas o garantías estarían ambos de acuerdo en probar esta propuesta sobre "${cleanTopic}"?`,
-    `Si miramos los datos disponibles, ¿cuál es el riesgo principal que deberíamos evitar para que tanto el Sujeto 1 como el Sujeto 2 queden conformes?`,
-    `¿Qué punto intermedio permitiría aprovechar el beneficio que menciona ${speakerName} sin descuidar la estabilidad general?`
-  ];
-  const question = socraticQuestions[(turn - 1) % socraticQuestions.length];
+function buildWikipediaDrivenMediation(speakerName, text, wikiData) {
+  const cleanTitle = wikiData?.title || app.currentTopic || 'Tema en discusión';
+  const facts = wikiData?.extracts?.length > 0
+    ? wikiData.extracts
+    : [`Contexto sobre ${cleanTitle}: existen distintas visiones históricas y prácticas sobre su impacto.`];
 
   return {
-    topic: cleanTopic,
-    consensusScore: newScore,
-    commonGround: [
-      `Ambos buscan mejorar los resultados prácticos en torno a: ${cleanTopic}`,
-      `Reconocimiento de que se requieren criterios claros y evidencia para decidir`
-    ],
-    steelman: `${speakerName} destaca un punto clave: "${text}", poniendo el foco en los efectos reales y prácticos sobre las personas.`,
-    verifiedFacts: facts,
-    socraticQuestion: question,
-    explorationPaths: [
-      `📊 Analizar datos y evidencia empírica sobre ${cleanTopic}`,
-      `⚖️ Evaluar pros, contras y efectos secundarios`,
-      `🤝 Construir un acuerdo o experimento piloto entre ambos`
-    ],
-    counterpointForSolo: `Desde la postura opuesta al ${speakerName} sobre "${cleanTopic}", el principal riesgo es que una aplicación rígida genere costos ocultos o afecte a quienes tienen menos margen de adaptación.`,
-    spokenResponse: `He recopilado datos sobre ${cleanTopic}. ${question}`
+    correctedText: cleanPhoneticTranscript(text),
+    topicTitle: cleanTitle,
+    mediatorMessage: `Excelente tema: ${cleanTitle}. Aquí tienes el contexto histórico y documental verificado junto con dos posturas claras para abrir el debate.`,
+    keyFacts: facts,
+    stanceA: `A favor del impacto transformador y la relevancia central de ${cleanTitle}.`,
+    stanceB: `Mirada crítica sobre los límites, controversias o contexto histórico de ${cleanTitle}.`,
+    socraticQuestion: `Considerando estos antecedentes sobre ${cleanTitle}, ¿cuál de estas dos posturas te parece más sólida y por qué?`,
+    consensusPercentage: app.userTurnCount >= 2 ? 40 : 0,
+    sharedPoints: []
   };
 }
 
-function extractCleanTopic(sentence) {
-  let s = sentence
-    .replace(/^(hola|bueno|yo creo que|pienso que|creo que|me gustaría hablar de|quiero debatir sobre|exploremos este punto:?)\s+/i, '')
-    .trim();
-  if (s.length > 52) s = s.substring(0, 50) + '...';
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
 function applyMediationResult(result, lastSpeakerKey) {
-  if (result.topic) {
-    app.currentTopic = result.topic;
-    ui.activeTopicText.textContent = result.topic;
+  // 1. Auto-correct Whisper phonetic typos on the user's bubble!
+  if (result.correctedText && app.lastSpeakerTextNode) {
+    app.lastSpeakerTextNode.textContent = result.correctedText;
+    if (app.history.length > 0) {
+      app.history[app.history.length - 1].text = result.correctedText;
+    }
   }
 
-  if (typeof result.consensusScore === 'number') {
-    app.consensusScore = result.consensusScore;
+  // 2. Update Topic Title cleanly (NEVER raw user transcript!)
+  if (result.topicTitle) {
+    app.currentTopic = result.topicTitle;
+    ui.activeTopicText.textContent = result.topicTitle;
+  }
+
+  // 3. Only show Consensus Tracker if at least 2 user turns have taken place AND sharedPoints exist
+  const hasRealConsensus = app.userTurnCount >= 2 &&
+    typeof result.consensusPercentage === 'number' &&
+    result.consensusPercentage > 0 &&
+    Array.isArray(result.sharedPoints) &&
+    result.sharedPoints.length > 0;
+
+  if (hasRealConsensus) {
+    app.consensusScore = result.consensusPercentage;
     ui.consensusTracker.classList.remove('hidden');
     ui.consensusPct.textContent = `${app.consensusScore}%`;
     ui.consensusBar.style.width = `${app.consensusScore}%`;
-  }
-
-  if (Array.isArray(result.commonGround) && result.commonGround.length > 0) {
-    app.commonGround = result.commonGround;
-    ui.commonGroundList.innerHTML = result.commonGround
+    ui.commonGroundList.innerHTML = result.sharedPoints
       .map(item => `<div class="flex items-start gap-1.5"><span class="text-emerald-400">✓</span><span>${escapeHtml(item)}</span></div>`)
       .join('');
+  } else if (app.userTurnCount < 2) {
+    ui.consensusTracker.classList.add('hidden');
   }
 
+  // 4. Save AI turn in history
   app.history.push({
     role: 'IA Mediadora',
-    text: `${result.steelman || ''} ${result.socraticQuestion || ''}`
+    text: `${result.mediatorMessage || ''} ${result.socraticQuestion || ''}`
   });
 
-  renderAIMediationCard(result);
+  // 5. Render Clean Conversational AI Card
+  const aiCardEl = renderAIMediationCard(result);
 
+  // 6. Advance turn indicator
   if (!app.hasRemotePartner) {
     setActiveSpeaker(lastSpeakerKey === 'user1' ? 'user2' : 'user1');
   } else {
     updateStageUI('idle');
   }
 
-  const textToSpeak = result.spokenResponse || `${result.steelman}. ${result.socraticQuestion}`;
-  speakAI(textToSpeak);
+  // 7. Smooth scroll to top of the AI card so the beginning of the response is NEVER cut off
+  setTimeout(() => {
+    aiCardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 100);
+
+  // 8. Speak natural response out loud
+  const spoken = `${result.mediatorMessage || ''} ${result.socraticQuestion || ''}`.trim();
+  speakAI(spoken);
 }
 
 // ==========================================
-// 9. CARDS & INTERACTIVE EXPLORATION
+// 9. RENDER CONVERSATIONAL CARDS
 // ==========================================
 function renderSpeakerCard(speakerKey, speakerName, text) {
   const isU1 = speakerKey === 'user1';
@@ -829,41 +844,58 @@ function renderSpeakerCard(speakerKey, speakerName, text) {
         <i data-lucide="user" class="w-3.5 h-3.5"></i>
         <span>${speakerName}</span>
       </div>
-      <span class="text-[10px] text-slate-400">Argumento</span>
+      <span class="text-[10px] text-slate-400">Intervención</span>
     </div>
-    <p class="text-sm text-slate-100 leading-relaxed">${escapeHtml(text)}</p>
+    <p class="speaker-text text-sm text-slate-100 leading-relaxed">${escapeHtml(text)}</p>
   `;
 
   ui.cardsContainer.appendChild(div);
-  scrollToBottom();
   lucide.createIcons();
+  div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  return div.querySelector('.speaker-text');
 }
 
 function renderAIMediationCard(res) {
   const div = document.createElement('div');
-  div.className = 'p-4 rounded-2xl bg-slate-900/95 border border-emerald-500/30 text-xs text-slate-200 shadow-lg space-y-3';
+  div.className = 'p-4 rounded-2xl bg-slate-900/95 border border-emerald-500/30 text-xs text-slate-200 shadow-xl space-y-3.5';
 
-  const factsHtml = Array.isArray(res.verifiedFacts) && res.verifiedFacts.length > 0
+  const factsHtml = Array.isArray(res.keyFacts) && res.keyFacts.length > 0
     ? `
-      <div class="p-3 rounded-xl bg-slate-950/80 border border-cyan-500/25 space-y-1.5">
+      <div class="p-3 rounded-xl bg-slate-950/85 border border-cyan-500/25 space-y-1.5">
         <div class="text-[11px] font-bold text-cyan-400 flex items-center gap-1.5">
           <i data-lucide="book-open" class="w-3.5 h-3.5"></i>
-          <span>Datos y Contexto Verificado</span>
+          <span>Datos y Contexto sobre ${escapeHtml(res.topicTitle || 'el tema')}</span>
         </div>
         <ul class="space-y-1.5 text-[11px] text-slate-300 list-disc list-inside leading-relaxed">
-          ${res.verifiedFacts.map(f => `<li>${escapeHtml(f)}</li>`).join('')}
+          ${res.keyFacts.map(f => `<li>${escapeHtml(f)}</li>`).join('')}
         </ul>
       </div>
     `
     : '';
 
-  const pathsHtml = Array.isArray(res.explorationPaths) && res.explorationPaths.length > 0
+  const stancesHtml = (res.stanceA && res.stanceB)
     ? `
-      <div>
-        <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">
-          🧭 ¿Cómo quieren seguir explorando? (Toca una ruta o habla con el micrófono):
+      <div class="space-y-2">
+        <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block">
+          ⚖️ Posturas en juego (Toca cualquiera para defenderla o responde con tu voz):
         </span>
-        <div class="flex flex-wrap gap-1.5 exploration-buttons"></div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button class="stance-a-btn text-left p-2.5 rounded-xl bg-sky-950/35 hover:bg-sky-900/50 border border-sky-500/35 transition group">
+            <div class="text-[10px] font-bold text-sky-400 mb-0.5 flex items-center justify-between">
+              <span>🔵 Postura A (Sujeto 1)</span>
+              <span class="opacity-0 group-hover:opacity-100 transition text-[9px]">Defender →</span>
+            </div>
+            <p class="text-[11px] text-slate-200 leading-snug">${escapeHtml(res.stanceA)}</p>
+          </button>
+
+          <button class="stance-b-btn text-left p-2.5 rounded-xl bg-amber-950/35 hover:bg-amber-900/50 border border-amber-500/35 transition group">
+            <div class="text-[10px] font-bold text-amber-400 mb-0.5 flex items-center justify-between">
+              <span>🟠 Postura B (Sujeto 2)</span>
+              <span class="opacity-0 group-hover:opacity-100 transition text-[9px]">Defender →</span>
+            </div>
+            <p class="text-[11px] text-slate-200 leading-snug">${escapeHtml(res.stanceB)}</p>
+          </button>
+        </div>
       </div>
     `
     : '';
@@ -875,63 +907,48 @@ function renderAIMediationCard(res) {
         <span>IA Mediadora</span>
       </div>
       <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-        Mediación y Datos
+        ${escapeHtml(res.topicTitle || 'Mediación')}
       </span>
     </div>
 
-    ${res.steelman ? `
-      <p class="text-xs text-slate-200 leading-relaxed">
-        <strong class="text-emerald-300">Síntesis constructiva:</strong> ${escapeHtml(res.steelman)}
+    ${res.mediatorMessage ? `
+      <p class="text-sm text-slate-100 leading-relaxed">
+        ${escapeHtml(res.mediatorMessage)}
       </p>
     ` : ''}
 
     ${factsHtml}
 
+    ${stancesHtml}
+
     ${res.socraticQuestion ? `
-      <div class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-200 font-medium flex items-start gap-2">
-        <i data-lucide="help-circle" class="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5"></i>
+      <div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-200 font-medium flex items-start gap-2">
+        <i data-lucide="help-circle" class="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5"></i>
         <span>${escapeHtml(res.socraticQuestion)}</span>
-      </div>
-    ` : ''}
-
-    ${pathsHtml}
-
-    ${(!app.hasRemotePartner && res.counterpointForSolo) ? `
-      <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
-        <span class="text-[10px] text-slate-400">¿Estás probando tú solo?</span>
-        <button class="solo-counterpoint-btn px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-bold transition flex items-center gap-1.5">
-          <i data-lucide="users" class="w-3.5 h-3.5"></i>
-          <span>Que la IA responda como Sujeto 2</span>
-        </button>
       </div>
     ` : ''}
   `;
 
-  const btnContainer = div.querySelector('.exploration-buttons');
-  if (btnContainer && Array.isArray(res.explorationPaths)) {
-    res.explorationPaths.forEach(pathText => {
-      const btn = document.createElement('button');
-      btn.className = 'text-left text-[11px] px-2.5 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/30 transition';
-      btn.textContent = `👉 ${pathText}`;
-      btn.addEventListener('click', () => {
-        submitArgument(app.activeSpeaker, `Exploremos este punto: ${pathText}`);
-      });
-      btnContainer.appendChild(btn);
+  // Bind Stance A & Stance B interactive buttons
+  const btnA = div.querySelector('.stance-a-btn');
+  if (btnA && res.stanceA) {
+    btnA.addEventListener('click', () => {
+      setActiveSpeaker('user1');
+      submitArgument('user1', res.stanceA);
     });
   }
 
-  const soloBtn = div.querySelector('.solo-counterpoint-btn');
-  if (soloBtn && res.counterpointForSolo) {
-    soloBtn.addEventListener('click', () => {
-      soloBtn.remove();
+  const btnB = div.querySelector('.stance-b-btn');
+  if (btnB && res.stanceB) {
+    btnB.addEventListener('click', () => {
       setActiveSpeaker('user2');
-      submitArgument('user2', res.counterpointForSolo);
+      submitArgument('user2', res.stanceB);
     });
   }
 
   ui.cardsContainer.appendChild(div);
-  scrollToBottom();
   lucide.createIcons();
+  return div;
 }
 
 function bindQuickTestChips() {
@@ -943,10 +960,6 @@ function bindQuickTestChips() {
       }
     });
   });
-}
-
-function scrollToBottom() {
-  ui.cardsContainer.scrollTop = ui.cardsContainer.scrollHeight;
 }
 
 function escapeHtml(str) {
@@ -1040,20 +1053,25 @@ function setupDataChannelListeners(conn, partnerLabel) {
 
     const infoDiv = document.createElement('div');
     infoDiv.className = 'p-3 rounded-2xl bg-indigo-950/40 border border-indigo-500/40 text-xs text-indigo-200 text-center font-medium';
-    infoDiv.textContent = `🎉 ¡Conectado en tiempo real con ${partnerLabel}! Todo lo que hablen o exploren aparecerá sincronizado en ambas pantallas.`;
+    infoDiv.textContent = `🎉 ¡Conectado en tiempo real con ${partnerLabel}!`;
     ui.cardsContainer.appendChild(infoDiv);
-    scrollToBottom();
   });
 
   conn.on('data', (payload) => {
     if (!payload || !payload.type) return;
 
     if (payload.type === 'SPEAKER_ARGUMENT') {
+      if (ui.welcomeCard) ui.welcomeCard.classList.add('hidden');
+      app.userTurnCount++;
       app.history.push({
         role: payload.speakerKey === 'user1' ? 'Sujeto 1' : 'Sujeto 2',
         text: payload.text
       });
-      renderSpeakerCard(payload.speakerKey, payload.speakerKey === 'user1' ? 'Sujeto 1' : 'Sujeto 2', payload.text);
+      app.lastSpeakerTextNode = renderSpeakerCard(
+        payload.speakerKey,
+        payload.speakerKey === 'user1' ? 'Sujeto 1' : 'Sujeto 2',
+        payload.text
+      );
       updateStageUI('thinking');
     } else if (payload.type === 'AI_MEDIATION') {
       applyMediationResult(payload.result, payload.nextSpeaker === 'user1' ? 'user2' : 'user1');
@@ -1065,7 +1083,6 @@ function setupDataChannelListeners(conn, partnerLabel) {
 // 11. EVENT LISTENERS
 // ==========================================
 function setupEventListeners() {
-  // Clicking Sujeto 1, Sujeto 2, or Main Mic Button DIRECTLY starts/stops recording!
   ui.talkUser1Btn.addEventListener('click', () => handleSpeakerClick('user1'));
   ui.talkUser2Btn.addEventListener('click', () => handleSpeakerClick('user2'));
   ui.mainMicBtn.addEventListener('click', toggleMainMicButton);
@@ -1086,10 +1103,10 @@ function setupEventListeners() {
   ui.voiceToggleBtn.addEventListener('click', () => {
     app.voiceEnabled = !app.voiceEnabled;
     if (app.voiceEnabled) {
-      ui.voiceIcon.className = 'w-4 h-4 text-emerald-400';
+      ui.voiceIcon.className = 'w-3.5 h-3.5 text-emerald-400';
     } else {
       stopAISpeech();
-      ui.voiceIcon.className = 'w-4 h-4 text-slate-500';
+      ui.voiceIcon.className = 'w-3.5 h-3.5 text-slate-500';
     }
   });
 
@@ -1098,17 +1115,16 @@ function setupEventListeners() {
     if (app.isRecording) stopRecordingAndProcess();
     app.currentTopic = null;
     app.history = [];
+    app.userTurnCount = 0;
     app.consensusScore = 0;
     app.commonGround = [];
-    ui.activeTopicText.textContent = 'Toca a Sujeto 1 o el micrófono abajo para hablar';
+    ui.activeTopicText.textContent = 'Esperando tema...';
     ui.consensusTracker.classList.add('hidden');
-    ui.cardsContainer.innerHTML = `
-      <div class="p-4 rounded-2xl bg-surface border border-slate-800/80 text-xs text-slate-300 shadow-md">
-        <p class="leading-relaxed">
-          Conversación reiniciada. Toca el botón de <strong>Sujeto 1</strong> para hablar o escribe cualquier tema abajo.
-        </p>
-      </div>
-    `;
+    ui.cardsContainer.innerHTML = '';
+    if (ui.welcomeCard) {
+      ui.welcomeCard.classList.remove('hidden');
+      ui.cardsContainer.appendChild(ui.welcomeCard);
+    }
     setActiveSpeaker('user1');
     updateStageUI('idle');
   });

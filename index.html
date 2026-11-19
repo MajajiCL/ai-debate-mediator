@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Debate AI — Mediador por Voz (Compatible Brave & Móvil)</title>
-  <meta name="description" content="Debate por voz entre dos personas con reconocimiento neuronal Whisper local (compatible con Brave) y mediación IA gratuita." />
+  <title>Debate AI — Mediador Socrático por Voz</title>
+  <meta name="description" content="Debate por voz entre dos personas con reconocimiento neuronal local y mediación IA en tiempo real." />
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -36,188 +36,189 @@
   <!-- Custom Styles -->
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body class="bg-stage text-slate-100 min-h-screen flex flex-col font-sans selection:bg-brand/30 selection:text-indigo-300 overflow-x-hidden">
+<body class="bg-stage text-slate-100 min-h-screen flex flex-col font-sans selection:bg-brand/30 selection:text-indigo-300">
 
-  <!-- Mobile-First App Container -->
-  <div class="w-full max-w-xl mx-auto min-h-screen flex flex-col px-3.5 py-3 sm:py-5 relative">
+  <!-- Main Container (Natural page flow + sticky top stage & bottom mic dock so cards are never squished) -->
+  <div class="w-full max-w-2xl mx-auto min-h-screen flex flex-col px-3.5 py-2.5 sm:py-4">
 
-    <!-- Top Simple Header -->
-    <header class="flex items-center justify-between py-2 border-b border-slate-800/80 mb-2.5">
-      <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-brand via-purple-500 to-emerald-400 p-0.5 shadow-md shadow-brand/20">
-          <div class="w-full h-full bg-slate-950 rounded-full flex items-center justify-center">
-            <i data-lucide="sparkles" class="w-4 h-4 text-emerald-400"></i>
+    <!-- Top Header + Compact Speaker Bar (Sticky) -->
+    <div class="sticky top-0 z-30 bg-stage/90 backdrop-blur-md pb-2 border-b border-slate-800/80 mb-3">
+      
+      <!-- Row 1: Brand & Quick Actions -->
+      <header class="flex items-center justify-between py-1.5">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-brand via-purple-500 to-emerald-400 p-0.5">
+            <div class="w-full h-full bg-slate-950 rounded-full flex items-center justify-center">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-emerald-400"></i>
+            </div>
           </div>
-        </div>
-        <div>
-          <h1 class="text-sm font-bold tracking-tight text-white flex items-center gap-1.5">
+          <h1 class="text-sm font-bold tracking-tight text-white flex items-center gap-2">
             Debate AI
             <span id="whisper-status-pill" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
-              🧠 Preparando voz local...
+              🧠 Preparando voz...
             </span>
           </h1>
         </div>
+
+        <!-- Topic Badge in Center/Right -->
+        <div class="flex items-center gap-1.5">
+          <button id="invite-btn" class="px-2.5 py-1 rounded-full bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 text-xs font-medium transition flex items-center gap-1 border border-indigo-500/30" title="Conectar con otra persona por enlace">
+            <i data-lucide="user-plus" class="w-3.5 h-3.5 text-indigo-400"></i>
+            <span class="hidden sm:inline">Conectar 2°</span>
+          </button>
+
+          <button id="voice-toggle-btn" class="p-1.5 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-200 transition border border-slate-700" title="Activar/Silenciar voz de la IA">
+            <i data-lucide="volume-2" class="w-3.5 h-3.5 text-emerald-400" id="voice-icon"></i>
+          </button>
+
+          <button id="reset-session-btn" class="p-1.5 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition border border-slate-700" title="Nuevo debate">
+            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- Row 2: Compact 3-Speaker Stage + Topic Title -->
+      <div class="bg-surface/95 border border-slate-800/90 rounded-2xl p-2.5 mt-1 shadow-lg">
+        <div class="grid grid-cols-3 gap-2 items-center">
+          
+          <!-- Sujeto 1 Button -->
+          <button id="talk-user1-btn" class="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-slate-800/70 transition text-left group focus:outline-none">
+            <div id="avatar-user1" class="w-10 h-10 rounded-full bg-slate-800 border-2 border-sky-400 flex items-center justify-center relative flex-shrink-0 transition-all">
+              <i data-lucide="mic" class="w-4 h-4 text-sky-400"></i>
+            </div>
+            <div class="min-w-0">
+              <div class="flex items-center gap-1">
+                <span class="text-xs font-bold text-sky-400 truncate">Sujeto 1</span>
+                <span id="badge-user1" class="px-1.5 py-0.2 rounded bg-sky-500 text-slate-950 text-[9px] font-extrabold">Hablar</span>
+              </div>
+              <span id="status-user1" class="text-[10px] text-slate-400 block truncate">Toca para hablar</span>
+            </div>
+          </button>
+
+          <!-- IA Mediadora Status -->
+          <div class="flex flex-col items-center justify-center text-center px-1 border-x border-slate-800/80">
+            <div class="flex items-center gap-1.5">
+              <div id="avatar-ai" class="w-7 h-7 rounded-full bg-emerald-950 border border-emerald-500/50 flex items-center justify-center relative">
+                <div id="ai-pulse-ring" class="absolute inset-0 rounded-full border border-emerald-400 opacity-0"></div>
+                <i data-lucide="bot" class="w-3.5 h-3.5 text-emerald-400"></i>
+              </div>
+              <span class="text-xs font-bold text-emerald-400">Mediadora IA</span>
+            </div>
+            <span id="active-topic-text" class="text-[10px] font-medium text-slate-300 truncate max-w-[160px] sm:max-w-[200px] mt-0.5">
+              Esperando tema...
+            </span>
+            <span id="status-ai" class="text-[9px] text-emerald-400/80 hidden">Escuchando</span>
+          </div>
+
+          <!-- Sujeto 2 Button -->
+          <button id="talk-user2-btn" class="flex items-center justify-end gap-2.5 p-1.5 rounded-xl hover:bg-slate-800/70 transition text-right group focus:outline-none">
+            <div class="min-w-0">
+              <div class="flex items-center justify-end gap-1">
+                <span id="badge-user2" class="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold">Hablar</span>
+                <span id="name-user2" class="text-xs font-bold text-amber-400 truncate">Sujeto 2</span>
+              </div>
+              <span id="status-user2" class="text-[10px] text-slate-400 block truncate">Toca para hablar</span>
+            </div>
+            <div id="avatar-user2" class="w-10 h-10 rounded-full bg-slate-800 border-2 border-amber-500/50 flex items-center justify-center relative flex-shrink-0 transition-all">
+              <i data-lucide="mic" class="w-4 h-4 text-amber-400"></i>
+            </div>
+          </button>
+
+        </div>
+
+        <!-- Live Recording Banner (Only visible while recording or transcribing) -->
+        <div id="live-transcript-box" class="mt-2 p-2 rounded-xl bg-slate-950 border border-rose-500/40 text-xs text-slate-100 text-center hidden">
+          <div class="flex items-center justify-center gap-2 mb-0.5">
+            <span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+            <span id="recording-timer" class="font-mono font-bold text-rose-400 text-[11px]">Grabando 00:00s</span>
+            <div class="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div id="mic-volume-bar" class="h-full bg-emerald-400 w-0 transition-all duration-75"></div>
+            </div>
+          </div>
+          <p id="live-transcript-text" class="text-[11px] text-sky-200 italic">Habla ahora... Toca el botón rojo al terminar</p>
+        </div>
+
+        <!-- Subtle Status Line -->
+        <div class="mt-1.5 pt-1.5 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-400 px-1">
+          <div class="flex items-center gap-1.5 truncate">
+            <span id="live-indicator" class="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0"></span>
+            <span id="stage-status-text" class="truncate">Toca a Sujeto 1 o el botón de abajo para proponer un tema</span>
+          </div>
+        </div>
       </div>
 
-      <!-- Minimal Action Buttons -->
-      <div class="flex items-center gap-1.5">
-        <button id="invite-btn" class="px-2.5 py-1.5 rounded-full bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 text-xs font-medium transition flex items-center gap-1.5 border border-indigo-500/30" title="Conectar con otra persona por enlace">
-          <i data-lucide="user-plus" class="w-3.5 h-3.5 text-indigo-400"></i>
-          <span>Conectar 2°</span>
-        </button>
-
-        <button id="voice-toggle-btn" class="p-2 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-200 transition border border-slate-700" title="Activar/Silenciar voz de la IA">
-          <i data-lucide="volume-2" class="w-4 h-4 text-emerald-400" id="voice-icon"></i>
-        </button>
-
-        <button id="reset-session-btn" class="p-2 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition border border-slate-700" title="Empezar nuevo tema">
-          <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
-        </button>
-      </div>
-    </header>
-
-    <!-- Dynamic Topic Banner -->
-    <div id="topic-container" class="mb-2.5 text-center">
-      <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface border border-slate-800 shadow-inner max-w-full">
-        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0"></span>
-        <span class="text-[11px] text-slate-400 flex-shrink-0">Tema:</span>
-        <span id="active-topic-text" class="text-xs font-semibold text-white truncate">Toca a Sujeto 1 o el micrófono abajo para hablar</span>
-      </div>
+      <!-- Common Ground Tracker (ONLY shown when both sides have debated and actual common ground exists) -->
+      <section id="consensus-tracker" class="mt-2 px-3 py-2 rounded-xl bg-emerald-950/30 border border-emerald-500/30 hidden">
+        <div class="flex items-center justify-between mb-1">
+          <div class="flex items-center gap-1.5">
+            <i data-lucide="handshake" class="w-3.5 h-3.5 text-emerald-400"></i>
+            <span class="text-[11px] font-bold text-emerald-300">Puntos de Entendimiento Común</span>
+          </div>
+          <span id="consensus-pct" class="text-[10px] font-extrabold text-emerald-400 bg-emerald-500/10 px-2 py-0.2 rounded-full border border-emerald-500/20">0%</span>
+        </div>
+        <div class="w-full h-1 bg-slate-800 rounded-full overflow-hidden mb-1.5">
+          <div id="consensus-bar" class="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 w-0 transition-all duration-700"></div>
+        </div>
+        <div id="common-ground-list" class="text-[11px] text-slate-200 space-y-0.5"></div>
+      </section>
     </div>
 
-    <!-- Voice Stage: Clicking Sujeto 1 or Sujeto 2 DIRECTLY starts/stops recording for that speaker -->
-    <section class="bg-surface/90 border border-slate-800/90 rounded-3xl p-4 mb-3 shadow-xl relative overflow-hidden backdrop-blur-md">
-      <div class="absolute -top-12 left-1/2 -translate-x-1/2 w-48 h-48 bg-brand/10 rounded-full blur-3xl pointer-events-none"></div>
-
-      <div class="grid grid-cols-3 gap-2 items-center justify-items-center relative z-10">
-        
-        <!-- Speaker 1: Clicking directly toggles recording for Sujeto 1 -->
-        <button id="talk-user1-btn" class="flex flex-col items-center text-center group focus:outline-none active:scale-95 transition-transform" title="Haz clic aquí para hablar como Sujeto 1">
-          <div id="avatar-user1" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-slate-800 border-2 border-sky-400 flex items-center justify-center relative transition-all duration-300 shadow-md ring-2 ring-sky-400/30 group-hover:bg-sky-950/60">
-            <i data-lucide="mic" class="w-7 h-7 sm:w-8 sm:h-8 text-sky-400"></i>
-            <span id="badge-user1" class="absolute -bottom-1 px-2 py-0.5 rounded-full bg-sky-500 text-slate-950 text-[9px] font-extrabold">🎙️ Hablar</span>
-          </div>
-          <span class="text-xs font-bold text-sky-400 mt-2">Sujeto 1</span>
-          <span id="status-user1" class="text-[10px] text-slate-300">Toca para hablar</span>
-        </button>
-
-        <!-- Center: AI Mediator Orb -->
-        <div class="flex flex-col items-center text-center">
-          <div id="avatar-ai" class="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-indigo-950 via-emerald-950 to-slate-900 border-2 border-emerald-500/40 flex items-center justify-center relative transition-all duration-300 shadow-lg shadow-emerald-500/10">
-            <div id="ai-pulse-ring" class="absolute inset-0 rounded-full border-2 border-emerald-400 opacity-0 transition-opacity"></div>
-            <i data-lucide="bot" class="w-9 h-9 sm:w-10 sm:h-10 text-emerald-400"></i>
-            <span class="absolute -bottom-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-bold">Mediadora IA</span>
-          </div>
-          <span class="text-xs font-bold text-emerald-400 mt-2">IA Neutral</span>
-          <span id="status-ai" class="text-[10px] text-slate-400">Escuchando</span>
-        </div>
-
-        <!-- Speaker 2: Clicking directly toggles recording for Sujeto 2 -->
-        <button id="talk-user2-btn" class="flex flex-col items-center text-center group focus:outline-none active:scale-95 transition-transform" title="Haz clic aquí para hablar como Sujeto 2">
-          <div id="avatar-user2" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-slate-800 border-2 border-amber-500/50 flex items-center justify-center relative transition-all duration-300 shadow-md group-hover:bg-amber-950/60">
-            <i data-lucide="mic" class="w-7 h-7 sm:w-8 sm:h-8 text-amber-400"></i>
-            <span id="badge-user2" class="absolute -bottom-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold">🎙️ Hablar</span>
-          </div>
-          <span id="name-user2" class="text-xs font-bold text-amber-400 mt-2">Sujeto 2</span>
-          <span id="status-user2" class="text-[10px] text-slate-300">Toca para hablar</span>
-        </button>
-
-      </div>
-
-      <!-- Live Recording / Transcription Banner -->
-      <div id="live-transcript-box" class="mt-3 p-2.5 rounded-2xl bg-slate-950/90 border border-rose-500/40 text-xs text-slate-100 text-center hidden">
-        <div class="flex items-center justify-center gap-2 mb-1">
-          <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
-          <span id="recording-timer" class="font-mono font-bold text-rose-400">Grabando 00:00s</span>
-        </div>
-        <p id="live-transcript-text" class="text-xs text-sky-200 italic">Habla ahora... cuando termines presiona "Terminé de hablar"</p>
-      </div>
-
-      <!-- Real-Time Microphone Volume Meter Bar -->
-      <div class="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between gap-3 px-1">
-        <div class="flex items-center gap-2 min-w-0">
-          <span id="live-indicator" class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
-          <span id="stage-status-text" class="text-[11px] text-slate-300 truncate">Toca "Sujeto 1" arriba o el botón de abajo para hablar</span>
-        </div>
-        <div class="flex items-center gap-2 flex-shrink-0">
-          <div class="w-20 h-2 bg-slate-800 rounded-full overflow-hidden">
-            <div id="mic-volume-bar" class="h-full bg-emerald-400 w-0 transition-all duration-75"></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Common Ground Tracker (Appears once debate starts) -->
-    <section id="consensus-tracker" class="mb-3 p-3.5 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 hidden">
-      <div class="flex items-center justify-between mb-2">
-        <div class="flex items-center gap-1.5">
-          <i data-lucide="handshake" class="w-4 h-4 text-emerald-400"></i>
-          <span class="text-xs font-bold text-emerald-300">Entendimiento Común Alcanzado</span>
-        </div>
-        <span id="consensus-pct" class="text-xs font-extrabold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">0%</span>
-      </div>
-      <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden mb-2">
-        <div id="consensus-bar" class="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 w-0 transition-all duration-700"></div>
-      </div>
-      <div id="common-ground-list" class="text-[11px] text-slate-300 space-y-1"></div>
-    </section>
-
-    <!-- Cards Stream: Conversation, Data & Exploration Buttons -->
-    <section class="flex-1 overflow-y-auto space-y-3 mb-3 pr-1" id="cards-container">
+    <!-- Conversation Stream (Full vertical breathing room, natural scroll) -->
+    <main class="flex-1 space-y-3.5 pb-6" id="cards-container">
       
-      <!-- Onboarding Card with Instant 1-Click Test Chips -->
-      <div class="p-4 rounded-2xl bg-surface border border-slate-800/80 text-xs text-slate-300 shadow-md space-y-3">
+      <!-- Clean Welcome Card -->
+      <div id="welcome-card" class="p-4 rounded-2xl bg-surface border border-slate-800/80 text-xs text-slate-300 shadow-md space-y-3">
         <div class="flex items-center gap-2">
           <span class="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
-            <i data-lucide="mic" class="w-4 h-4"></i>
+            <i data-lucide="message-square" class="w-4 h-4"></i>
           </span>
-          <strong class="text-white text-sm">Habla con tu micrófono o prueba con 1 clic</strong>
+          <strong class="text-white text-sm">¿De qué quieres conversar o debatir hoy?</strong>
         </div>
         <p class="leading-relaxed text-slate-300">
-          Puedes tocar directamente el círculo de <strong>Sujeto 1</strong> arriba (o el botón grande de abajo) para grabar tu voz. Compatible con <strong>Brave, Chrome, Edge y móviles</strong> gracias al motor Whisper IA integrado en el navegador.
+          Di cualquier tema con tu micrófono (por ejemplo: <em>"Quiero debatir sobre Galileo Galilei"</em>, <em>"¿Debería reducirse la jornada laboral?"</em> o lo que se te ocurra). La IA corregirá cualquier error del micrófono, traerá <strong>datos reales sobre ese tema</strong> y planteará las posturas para explorar.
         </p>
         <div>
           <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">
-            ⚡ ¿Quieres testear de inmediato con 1 clic? Toca cualquier ejemplo:
+            ⚡ O inicia con 1 clic en cualquiera de estos temas:
           </span>
           <div class="flex flex-wrap gap-1.5">
+            <button class="quick-test-btn text-left text-[11px] px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/30 text-amber-200 border border-amber-500/30 transition" data-prompt="Hola, quisiera debatir sobre Galileo Galilei, el heliocentrismo y su juicio ante la Inquisición.">
+              🔭 Galileo Galilei: Ciencia vs. Inquisición
+            </button>
             <button class="quick-test-btn text-left text-[11px] px-2.5 py-1.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/30 text-sky-200 border border-sky-500/30 transition" data-prompt="Creo que la semana laboral debería reducirse a 4 días porque aumenta la productividad y reduce el estrés.">
-              💼 "La semana laboral debería ser de 4 días"
+              💼 Semana laboral de 4 días
             </button>
-            <button class="quick-test-btn text-left text-[11px] px-2.5 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/30 transition" data-prompt="Las redes sociales están dañando la capacidad de concentración y empatía de los jóvenes.">
-              📱 "¿Las redes sociales nos aíslan o nos conectan?"
-            </button>
-            <button class="quick-test-btn text-left text-[11px] px-2.5 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-500/30 transition" data-prompt="La energía nuclear es indispensable para reemplazar al carbón y frenar el cambio climático.">
-              ⚡ "Energía nuclear vs. 100% renovables"
+            <button class="quick-test-btn text-left text-[11px] px-2.5 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-500/30 transition" data-prompt="La energía nuclear es indispensable para reemplazar a los combustibles fósiles y frenar el cambio climático.">
+              ⚡ Energía Nuclear vs. Renovables
             </button>
           </div>
         </div>
       </div>
 
-    </section>
+    </main>
 
-    <!-- Bottom Dock: Microphone & Text Input -->
+    <!-- Bottom Dock: Microphone & Text Input (Sticky at bottom) -->
     <div class="sticky bottom-2 z-30 pt-1">
       <div class="bg-surface/95 backdrop-blur-lg border border-slate-800/90 rounded-3xl p-2.5 shadow-2xl flex flex-col gap-2">
         
         <div class="flex gap-2">
           <!-- Main Push-to-Talk Button -->
-          <button id="main-mic-btn" class="flex-1 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-brand via-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white font-semibold text-sm transition-all duration-300 shadow-lg shadow-brand/25 flex items-center justify-center gap-2.5 active:scale-[0.98]">
-            <i data-lucide="mic" class="w-5 h-5" id="main-mic-icon"></i>
+          <button id="main-mic-btn" class="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-brand via-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white font-semibold text-sm transition-all duration-300 shadow-lg shadow-brand/25 flex items-center justify-center gap-2 active:scale-[0.98]">
+            <i data-lucide="mic" class="w-4 h-4" id="main-mic-icon"></i>
             <span id="main-mic-label">🎙️ Hablar como Sujeto 1</span>
           </button>
 
-          <!-- Stop AI Voice Button (only visible while AI speaks) -->
-          <button id="stop-ai-btn" class="px-3.5 py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs transition hidden flex items-center gap-1.5 shadow-lg">
-            <i data-lucide="square" class="w-4 h-4"></i>
+          <!-- Stop AI Voice Button -->
+          <button id="stop-ai-btn" class="px-3.5 py-3 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs transition hidden flex items-center gap-1.5 shadow-lg">
+            <i data-lucide="square" class="w-3.5 h-3.5"></i>
             <span>Callar IA</span>
           </button>
         </div>
 
-        <!-- Text Input Fallback -->
+        <!-- Text Input -->
         <div class="flex items-center gap-2 px-1">
-          <input type="text" id="text-input" placeholder="O escribe lo que piensas aquí y presiona Enter..." class="flex-1 bg-slate-950/90 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition" />
-          <button id="text-send-btn" class="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition text-xs font-semibold flex items-center gap-1" title="Enviar argumento">
+          <input type="text" id="text-input" placeholder="O escribe tu tema o argumento aquí y presiona Enter..." class="flex-1 bg-slate-950/90 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition" />
+          <button id="text-send-btn" class="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition text-xs font-semibold flex items-center gap-1">
             <span>Enviar</span>
             <i data-lucide="send" class="w-3.5 h-3.5"></i>
           </button>
@@ -240,7 +241,7 @@
         </button>
       </div>
       <p class="text-xs text-slate-300 mb-3 leading-relaxed">
-        Envía este enlace a la otra persona. Al abrirlo, escucharán sus voces en directo y verán las mismas tarjetas y datos de la IA en sus pantallas:
+        Envía este enlace a la otra persona. Al abrirlo, escucharán sus voces en directo y verán el debate sincronizado en sus pantallas:
       </p>
       <div class="flex items-center gap-2 bg-slate-950 p-2 rounded-xl border border-slate-800 mb-3">
         <input type="text" id="share-link-input" readonly class="bg-transparent text-xs text-emerald-300 font-mono flex-1 outline-none truncate" />
